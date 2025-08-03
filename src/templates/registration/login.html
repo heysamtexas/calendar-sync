@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Calendar Sync Tool{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Login</h2>
+    <p>Please log in to access your calendar synchronization dashboard.</p>
+    
+    <form method="post">
+        {% csrf_token %}
+        <div>
+            <label for="{{ form.username.id_for_label }}">Username:</label>
+            {{ form.username }}
+            {% if form.username.errors %}
+                <div class="message error">{{ form.username.errors.0 }}</div>
+            {% endif %}
+        </div>
+        
+        <div>
+            <label for="{{ form.password.id_for_label }}">Password:</label>
+            {{ form.password }}
+            {% if form.password.errors %}
+                <div class="message error">{{ form.password.errors.0 }}</div>
+            {% endif %}
+        </div>
+        
+        {% if form.non_field_errors %}
+            <div class="message error">{{ form.non_field_errors.0 }}</div>
+        {% endif %}
+        
+        <button type="submit" class="btn">Login</button>
+    </form>
+    
+    <p style="margin-top: 1rem;">
+        <small>This is a single-user application. If you don't have an account, create one using Django admin or the command line.</small>
+    </p>
+</div>
+{% endblock %}

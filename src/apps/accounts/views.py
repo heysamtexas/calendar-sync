@@ -30,12 +30,12 @@ def get_oauth_flow(request: HttpRequest) -> Flow:
                 "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [request.build_absolute_uri(reverse("auth_callback"))],
+                "redirect_uris": [request.build_absolute_uri(reverse("accounts:auth_callback"))],
             }
         },
         scopes=SCOPES,
     )
-    flow.redirect_uri = request.build_absolute_uri(reverse("auth_callback"))
+    flow.redirect_uri = request.build_absolute_uri(reverse("accounts:auth_callback"))
     return flow
 
 
@@ -65,7 +65,7 @@ def oauth_initiate(request: HttpRequest) -> HttpResponse:
             "Unable to connect to Google Calendar. Please check your internet connection and try again. "
             "If the problem persists, verify your Google OAuth credentials in the .env file.",
         )
-        return redirect("dashboard")
+        return redirect("dashboard:index")
 
 
 @login_required
@@ -84,7 +84,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             )
             # Clean up invalid state
             request.session.pop("oauth_state", None)
-            return redirect("dashboard")
+            return redirect("dashboard:index")
 
         # Check for error in callback
         if "error" in request.GET:
@@ -97,7 +97,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             )
             # Clean up session on error
             request.session.pop("oauth_state", None)
-            return redirect("dashboard")
+            return redirect("dashboard:index")
 
         # Exchange authorization code for tokens
         flow = get_oauth_flow(request)
@@ -121,7 +121,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
                 "No calendars were found in your Google account. Please ensure you have at least one calendar "
                 "and that this application has permission to access your Google Calendar.",
             )
-            return redirect("dashboard")
+            return redirect("dashboard:index")
 
         # Extract account information
         primary_calendar = calendars[0]
@@ -170,7 +170,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             request, f"Successfully {action} Google Calendar account: {email}"
         )
 
-        return redirect("dashboard")
+        return redirect("dashboard:index")
 
     except Exception as e:
         logger.error(f"OAuth callback failed for user {request.user.username}: {e!s}")
@@ -181,7 +181,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         )
         # Clean up session on exception
         request.session.pop("oauth_state", None)
-        return redirect("dashboard")
+        return redirect("dashboard:index")
 
 
 @login_required
@@ -217,4 +217,4 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
             "If the problem persists, the account may need to be disconnected from your Google account settings.",
         )
 
-    return redirect("dashboard")
+    return redirect("dashboard:index")

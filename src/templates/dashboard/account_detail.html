@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}{{ account.email }} - Calendar Sync Tool{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Account: {{ account.email }}</h2>
+    <p>Detailed view of calendar account and synchronization settings.</p>
+    <a href="{% url 'dashboard:index' %}" class="btn">← Back to Dashboard</a>
+</div>
+
+<!-- Account Information -->
+<div class="card">
+    <h3>Account Information</h3>
+    <table>
+        <tr>
+            <td><strong>Email:</strong></td>
+            <td>{{ account.email }}</td>
+        </tr>
+        <tr>
+            <td><strong>Status:</strong></td>
+            <td>
+                {% if account.is_active %}
+                    <span class="status status-active">Active</span>
+                {% else %}
+                    <span class="status status-inactive">Inactive</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td><strong>Connected:</strong></td>
+            <td>{{ account.created_at|date:"M d, Y H:i" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Last Sync:</strong></td>
+            <td>
+                {% if account.last_sync %}
+                    {{ account.last_sync|date:"M d, Y H:i" }}
+                {% else %}
+                    Never
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td><strong>Token Expires:</strong></td>
+            <td>
+                {% if account.token_expires_at %}
+                    {{ account.token_expires_at|date:"M d, Y H:i" }}
+                {% else %}
+                    Unknown
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- Calendars -->
+<div class="card">
+    <h3>Calendars ({{ calendars.count }})</h3>
+    {% if calendars %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Google ID</th>
+                    <th>Sync Enabled</th>
+                    <th>Primary</th>
+                    <th>Access Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for calendar in calendars %}
+                <tr>
+                    <td>{{ calendar.name }}</td>
+                    <td><code>{{ calendar.google_calendar_id }}</code></td>
+                    <td>
+                        {% if calendar.sync_enabled %}
+                            <span class="status status-active">Yes</span>
+                        {% else %}
+                            <span class="status status-inactive">No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if calendar.is_primary %}
+                            <span class="status status-active">Yes</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ calendar.access_role|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No calendars found for this account.</p>
+    {% endif %}
+</div>
+
+<!-- Sync History -->
+{% if sync_logs %}
+<div class="card">
+    <h3>Sync History (Last 20)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Started</th>
+                <th>Completed</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Events</th>
+                <th>Errors</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in sync_logs %}
+            <tr>
+                <td>{{ log.started_at|date:"M d, H:i:s" }}</td>
+                <td>
+                    {% if log.completed_at %}
+                        {{ log.completed_at|date:"M d, H:i:s" }}
+                    {% else %}
+                        <span class="status status-pending">Running</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.completed_at %}
+                        {{ log.duration }} sec
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.success %}
+                        <span class="status status-active">Success</span>
+                    {% elif log.completed_at %}
+                        <span class="status status-inactive">Failed</span>
+                    {% else %}
+                        <span class="status status-pending">Running</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.events_processed %}
+                        {{ log.events_processed }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.error_message %}
+                        <span class="status status-inactive">{{ log.error_message|truncatechars:30 }}</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Actions -->
+<div class="card">
+    <h3>Actions</h3>
+    {% if account.is_active %}
+        <a href="#" class="btn">Run Manual Sync</a>
+        <a href="#" class="btn">Refresh Calendars</a>
+        <a href="#" class="btn btn-danger">Disconnect Account</a>
+    {% else %}
+        <a href="#" class="btn btn-success">Reactivate Account</a>
+        <a href="#" class="btn btn-danger">Remove Account</a>
+    {% endif %}
+</div>
+{% endblock %}
