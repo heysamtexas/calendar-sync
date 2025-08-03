@@ -37,6 +37,10 @@ ALLOWED_HOSTS = [
     host.strip() for host in env("ALLOWED_HOSTS", default="localhost").split(",")
 ]
 
+# Google OAuth Configuration
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET")
+
 
 # Application definition
 

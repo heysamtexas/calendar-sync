@@ -60,10 +60,12 @@ def oauth_initiate(request: HttpRequest) -> HttpResponse:
 
     except Exception as e:
         logger.error(f"OAuth initiation failed for user {request.user.username}: {e!s}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {str(e)}")
         messages.error(
             request,
-            "Unable to connect to Google Calendar. Please check your internet connection and try again. "
-            "If the problem persists, verify your Google OAuth credentials in the .env file.",
+            f"Unable to connect to Google Calendar. Error: {str(e)}. "
+            "Please verify your Google OAuth credentials and redirect URI configuration.",
         )
         return redirect("dashboard:index")
 
