@@ -96,6 +96,7 @@ def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse
 
 
 @login_required
+@require_POST
 def manual_sync(request: HttpRequest, account_id: int) -> HttpResponse:
     """Manually trigger sync for a specific account"""
     from apps.calendars.services.sync_engine import sync_all_calendars
