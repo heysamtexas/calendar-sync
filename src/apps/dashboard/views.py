@@ -6,6 +6,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render, redirect
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_POST
 
 from apps.accounts.models import UserProfile
 from apps.calendars.models import Calendar, CalendarAccount, SyncLog
@@ -101,12 +103,12 @@ def refresh_calendars(request: HttpRequest, account_id: int) -> HttpResponse:
                     "is_primary": cal_item.get("primary", False),
                     "description": cal_item.get("description", ""),
                     "color": cal_item.get("backgroundColor", ""),
-                    # Keep existing sync_enabled setting, default to True for new calendars
+                    # Keep existing sync_enabled setting, defaults applied below for new calendars
                 },
             )
             
             if created:
-                calendar.sync_enabled = True  # Enable sync for new calendars
+                calendar.sync_enabled = False  # SAFE DEFAULT - require explicit opt-in
                 calendar.save()
                 calendars_created += 1
             else:
@@ -143,11 +145,10 @@ def refresh_calendars(request: HttpRequest, account_id: int) -> HttpResponse:
 
 
 @login_required
+@require_POST
+@csrf_protect
 def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse:
     """Toggle sync status for a specific calendar"""
-    if request.method != "POST":
-        return HttpResponse("Method not allowed", status=405)
-    
     # Get calendar and verify ownership - get_object_or_404 handles the 404 response
     calendar = get_object_or_404(
         Calendar, 
@@ -157,7 +158,7 @@ def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse
     
     # Toggle sync status
     calendar.sync_enabled = not calendar.sync_enabled
-    calendar.save()
+    calendar.save(update_fields=['sync_enabled'])
     
     action = "enabled" if calendar.sync_enabled else "disabled"
     logger.info(f"Sync {action} for calendar {calendar.name} by user {request.user.username}")

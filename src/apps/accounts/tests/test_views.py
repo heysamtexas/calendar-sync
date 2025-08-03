@@ -62,7 +62,7 @@ class OAuthViewsTest(TestCase):
 
         # Should redirect to dashboard with error
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
+        self.assertEqual(response.url, reverse("dashboard:index"))
 
     def test_oauth_callback_requires_login(self):
         """Test that OAuth callback requires authentication"""
@@ -85,7 +85,7 @@ class OAuthViewsTest(TestCase):
 
         # Should redirect to dashboard with error
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
+        self.assertEqual(response.url, reverse("dashboard:index"))
 
     def test_oauth_callback_error_parameter(self):
         """Test OAuth callback with error parameter"""
@@ -104,7 +104,7 @@ class OAuthViewsTest(TestCase):
 
         # Should redirect to dashboard with error
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
+        self.assertEqual(response.url, reverse("dashboard:index"))
 
     @patch("googleapiclient.discovery.build")
     @patch("apps.accounts.views.get_oauth_flow")
@@ -140,13 +140,13 @@ class OAuthViewsTest(TestCase):
             reverse("accounts:auth_callback"), {"state": "test_state", "code": "auth_code_123"}
         )
 
-        # Should redirect to dashboard
+        # Should redirect to account detail page
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
-
+        
         # Should create calendar account
         self.assertTrue(CalendarAccount.objects.filter(user=self.user).exists())
         account = CalendarAccount.objects.get(user=self.user)
+        self.assertEqual(response.url, reverse("dashboard:account_detail", args=[account.id]))
         self.assertEqual(account.email, "test@gmail.com")
         self.assertTrue(account.is_active)
 
@@ -176,7 +176,7 @@ class OAuthViewsTest(TestCase):
 
         # Should redirect to dashboard
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
+        self.assertEqual(response.url, reverse("dashboard:index"))
 
         # Account should be deleted
         self.assertFalse(CalendarAccount.objects.filter(id=account.id).exists())
@@ -191,7 +191,7 @@ class OAuthViewsTest(TestCase):
 
         # Should redirect to dashboard
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
+        self.assertEqual(response.url, reverse("dashboard:index"))
 
     def test_disconnect_account_wrong_user(self):
         """Test disconnecting account belonging to different user"""
@@ -216,7 +216,7 @@ class OAuthViewsTest(TestCase):
 
         # Should redirect to dashboard
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard"))
+        self.assertEqual(response.url, reverse("dashboard:index"))
 
         # Account should still exist
         self.assertTrue(CalendarAccount.objects.filter(id=account.id).exists())

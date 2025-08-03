@@ -199,6 +199,175 @@ footer {
     font-size: 0.875rem;
 }
 
+/* Calendar Sync Toggle Components */
+.calendar-sync-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sync-toggle-form {
+    display: contents;
+    background: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sync-status-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 500;
+}
+
+.btn-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-toggle:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Loading States */
+.loading-indicator {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.loading-indicator.htmx-request {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e9ecef;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error States */
+.error-container {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin-top: 0.25rem;
+}
+
+.error-container .alert {
+    margin: 0;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Status Icons */
+.icon-sync,
+.icon-pause,
+.icon-play {
+    width: 1rem;
+    height: 1rem;
+    display: inline-block;
+}
+
+.icon-sync::before { content: "🔄"; }
+.icon-pause::before { content: "⏸️"; }
+.icon-play::before { content: "▶️"; }
+
+/* HTMX Loading States */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline-flex;
+}
+
+.htmx-request.loading-indicator {
+    display: flex;
+}
+
+/* Accessibility Improvements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus indicators */
+.btn-toggle:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+    .status-active {
+        background-color: #000;
+        color: #fff;
+    }
+    
+    .status-inactive {
+        background-color: #666;
+        color: #fff;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .btn-toggle {
+        transition: none;
+    }
+    
+    .loading-spinner {
+        animation: none;
+    }
+    
+    .loading-spinner::after {
+        content: "⟳";
+        display: block;
+    }
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
     header .container {

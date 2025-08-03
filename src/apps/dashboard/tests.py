@@ -212,7 +212,7 @@ class CalendarToggleTest(TestCase):
         self.assertContains(response, 'hx-swap="innerHTML"')
         
         # After toggle, calendar was enabled->disabled, so button should be "Enable" (btn-success)
-        self.assertContains(response, 'class="btn btn-success"')  # Enable button for disabled calendar
+        self.assertContains(response, 'class="btn btn-toggle btn-success"')  # Enable button for disabled calendar
         self.assertContains(response, "Disabled")  # Status should be disabled
         self.assertContains(response, "Enable")  # Button text should be Enable
 

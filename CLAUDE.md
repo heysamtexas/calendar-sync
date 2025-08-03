@@ -120,6 +120,7 @@ Start with the AI agent validation sequence above, then follow the task implemen
 
 ### AI Interaction Guidelines
 - Please stop using time estimates to deliver work like humans are doing it. Unless you have new benchmarks for how quickly it takes a coding agent, then please don't offer it
+- Do not include time estimates for delivery
 
 ### Code Quality and Best Practices
 - Remember to run ruff linting and formatting early and often
@@ -205,3 +206,4 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 - **Change SECRET_KEY** in production
 - **Use environment variables** in production deployment
 - **Rotate OAuth credentials** if compromised
+```

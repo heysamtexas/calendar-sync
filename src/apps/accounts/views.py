@@ -76,7 +76,9 @@ def oauth_initiate(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def oauth_callback(request: HttpRequest) -> HttpResponse:
-    """Handle OAuth callback from Google"""
+    """Handle OAuth callback from Google with transaction safety"""
+    from django.db import transaction
+    
     try:
         # Verify state parameter for security
         stored_state = request.session.get("oauth_state")
@@ -143,70 +145,65 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         except Exception:
             pass  # Use fallback email
 
-        # Calculate token expiry
-        expires_at = timezone.now() + timedelta(
-            seconds=credentials.expiry.timestamp() - timezone.now().timestamp()
-        )
+        # Calculate token expiry with safe handling
+        if credentials.expiry:
+            expires_at = timezone.now() + timedelta(
+                seconds=credentials.expiry.timestamp() - timezone.now().timestamp()
+            )
+        else:
+            # Default to 1 hour if no expiry provided
+            expires_at = timezone.now() + timedelta(hours=1)
 
-        # Create or update calendar account
-        account, created = CalendarAccount.objects.update_or_create(
-            user=request.user,
-            google_account_id=google_account_id,
-            defaults={
-                "email": email,
-                "token_expires_at": expires_at,
-                "is_active": True,
-            },
-        )
+        # Use transaction to ensure atomicity
+        with transaction.atomic():
+            # Create or update calendar account
+            account, created = CalendarAccount.objects.update_or_create(
+                user=request.user,
+                google_account_id=google_account_id,
+                defaults={
+                    "email": email,
+                    "token_expires_at": expires_at,
+                    "is_active": True,
+                },
+            )
 
-        # Set encrypted tokens
-        account.set_access_token(credentials.token)
-        if credentials.refresh_token:
-            account.set_refresh_token(credentials.refresh_token)
-        account.save()
+            # Set encrypted tokens
+            account.set_access_token(credentials.token)
+            if credentials.refresh_token:
+                account.set_refresh_token(credentials.refresh_token)
+            account.save()
 
-        # Discover and create calendar records
-        try:
-            # Get all calendars for this account
-            all_calendars_result = service.calendarList().list().execute()
-            all_calendars = all_calendars_result.get("items", [])
+            # Discover and create calendar records safely
+            calendars_created = _discover_calendars_safely(account, service)
             
-            calendars_created = 0
-            for cal_item in all_calendars:
-                from apps.calendars.models import Calendar
-                
-                calendar, cal_created = Calendar.objects.update_or_create(
-                    calendar_account=account,
-                    google_calendar_id=cal_item["id"],
-                    defaults={
-                        "name": cal_item.get("summary", "Unnamed Calendar"),
-                        "is_primary": cal_item.get("primary", False),
-                        "description": cal_item.get("description", ""),
-                        "color": cal_item.get("backgroundColor", ""),
-                        "sync_enabled": True,  # Enable sync by default
-                    },
-                )
-                if cal_created:
-                    calendars_created += 1
-            
-            logger.info(f"Discovered {len(all_calendars)} calendars, created {calendars_created} new calendar records for {email}")
-            
-        except Exception as e:
-            logger.error(f"Failed to discover calendars for {email}: {e}")
-            # Don't fail the whole flow, just log the error
+            logger.info(
+                f"OAuth callback completed for {email}: "
+                f"account {'created' if created else 'updated'}, "
+                f"{calendars_created} calendars discovered"
+            )
 
         # Clean up session
         request.session.pop("oauth_state", None)
 
+        # Provide user feedback with security information
         action = "connected" if created else "updated"
         logger.info(
             f"Successfully {action} Google account {email} for user {request.user.username}"
         )
-        messages.success(
-            request, f"Successfully {action} Google Calendar account: {email}"
-        )
+        
+        if calendars_created > 0:
+            messages.success(
+                request,
+                f"Successfully {action} {email} and discovered {calendars_created} calendars. "
+                "Sync is disabled by default - enable it for calendars you want to sync."
+            )
+        else:
+            messages.success(
+                request, 
+                f"Successfully {action} Google Calendar account: {email}. No calendars found."
+            )
 
-        return redirect("dashboard:index")
+        return redirect("dashboard:account_detail", account_id=account.id)
 
     except Exception as e:
         logger.error(f"OAuth callback failed for user {request.user.username}: {e!s}")
@@ -254,3 +251,34 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
         )
 
     return redirect("dashboard:index")
+
+
+def _discover_calendars_safely(account, service):
+    """Discover calendars with safe defaults and error handling"""
+    try:
+        all_calendars_result = service.calendarList().list().execute()
+        all_calendars = all_calendars_result.get("items", [])
+        
+        calendars_created = 0
+        for cal_item in all_calendars:
+            from apps.calendars.models import Calendar
+            
+            calendar, cal_created = Calendar.objects.update_or_create(
+                calendar_account=account,
+                google_calendar_id=cal_item["id"],
+                defaults={
+                    "name": cal_item.get("summary", "Unnamed Calendar"),
+                    "is_primary": cal_item.get("primary", False),
+                    "description": cal_item.get("description", ""),
+                    "color": cal_item.get("backgroundColor", ""),
+                    "sync_enabled": False,  # SAFE DEFAULT - require explicit opt-in
+                },
+            )
+            if cal_created:
+                calendars_created += 1
+        
+        return calendars_created
+        
+    except Exception as e:
+        logger.error(f"Calendar discovery failed for {account.email}: {e}")
+        return 0
