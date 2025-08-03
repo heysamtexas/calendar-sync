@@ -21,9 +21,11 @@ if settings.DEBUG:
 logger = logging.getLogger(__name__)
 
 # OAuth 2.0 scopes for Google Calendar and user profile
+# Note: Google automatically adds 'openid' when requesting userinfo scopes
 SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/userinfo.email",
+    "openid",  # Required by Google when requesting userinfo
 ]
 
 
