@@ -82,7 +82,9 @@ class DashboardViewsTest(TestCase):
         self.client.login(username="testuser", password="testpass123")
         response = self.client.get(reverse("dashboard:account_detail", args=[other_account.id]))
         
-        self.assertEqual(response.status_code, 404)
+        # Service layer now returns permission error, view redirects
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("dashboard:index"))
 
     def test_refresh_calendars_requires_login(self):
         """Test that refresh calendars requires authentication"""
@@ -186,8 +188,8 @@ class CalendarToggleTest(TestCase):
         self.client.login(username="testuser", password="testpass123")
         response = self.client.post(reverse("dashboard:toggle_calendar_sync", args=[other_calendar.id]))
         
-        # Should return 404
-        self.assertEqual(response.status_code, 404)
+        # Service layer now returns 403 for permission denied (more accurate)
+        self.assertEqual(response.status_code, 403)
         
         # Verify other user's calendar was not modified
         other_calendar.refresh_from_db()

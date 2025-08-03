@@ -13,6 +13,79 @@ from .constants import BusyBlock, SyncConstants
 logger = logging.getLogger(__name__)
 
 
+class ActiveCalendarAccountManager(models.Manager):
+    """Manager for active calendar accounts with complex queries"""
+    
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
+    
+    def with_calendar_stats(self):
+        """Get accounts with calendar statistics annotated"""
+        return self.get_queryset().annotate(
+            calendar_count=models.Count("calendars"),
+            sync_enabled_count=models.Count(
+                "calendars", filter=models.Q(calendars__sync_enabled=True)
+            ),
+            primary_calendar_count=models.Count(
+                "calendars", filter=models.Q(calendars__is_primary=True)
+            ),
+        )
+    
+    def requiring_token_refresh(self, buffer_minutes=5):
+        """Get accounts that need token refresh"""
+        from datetime import timedelta
+        buffer_time = timezone.now() + timedelta(minutes=buffer_minutes)
+        return self.get_queryset().filter(token_expires_at__lte=buffer_time)
+    
+    def with_recent_sync_failures(self, hours=24, failure_threshold=3):
+        """Get accounts with recent sync failures"""
+        cutoff_time = timezone.now() - timezone.timedelta(hours=hours)
+        return self.get_queryset().annotate(
+            recent_failures=models.Count(
+                "sync_logs",
+                filter=models.Q(
+                    sync_logs__status="error",
+                    sync_logs__started_at__gte=cutoff_time
+                )
+            )
+        ).filter(recent_failures__gte=failure_threshold)
+
+
+class SyncEnabledCalendarManager(models.Manager):
+    """Manager for calendars that are enabled for synchronization"""
+    
+    def get_queryset(self):
+        return super().get_queryset().filter(
+            sync_enabled=True,
+            calendar_account__is_active=True,
+        )
+    
+    def with_event_stats(self):
+        """Get sync-enabled calendars with event statistics"""
+        return self.get_queryset().annotate(
+            total_events=models.Count("events"),
+            busy_blocks=models.Count(
+                "events", filter=models.Q(events__is_busy_block=True)
+            ),
+            regular_events=models.Count(
+                "events", filter=models.Q(events__is_busy_block=False)
+            ),
+        )
+    
+    def ready_for_sync(self):
+        """Get calendars that are ready for synchronization"""
+        return self.get_queryset().filter(
+            calendar_account__token_expires_at__gt=timezone.now()
+        ).select_related("calendar_account__user")
+    
+    def with_recent_activity(self, days=7):
+        """Get calendars with recent activity"""
+        cutoff_date = timezone.now() - timezone.timedelta(days=days)
+        return self.get_queryset().filter(
+            events__updated_at__gte=cutoff_date
+        ).distinct()
+
+
 class CalendarAccount(models.Model):
     """OAuth credentials and account info for each Google account"""
 
@@ -33,6 +106,10 @@ class CalendarAccount(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Custom managers
+    objects = models.Manager()  # Default manager
+    active = ActiveCalendarAccountManager()  # Active accounts only
 
     class Meta:
         unique_together = ["user", "google_account_id"]
@@ -91,6 +168,98 @@ class CalendarAccount(models.Model):
             logger.error(f"Failed to decrypt refresh token for account {self.email}")
             return ""
 
+    def needs_token_refresh(self, buffer_minutes=5):
+        """Check if token needs refresh with buffer time"""
+        if not self.token_expires_at:
+            return True
+        
+        from datetime import timedelta
+        buffer_time = timedelta(minutes=buffer_minutes)
+        return timezone.now() + buffer_time >= self.token_expires_at
+
+    def get_calendar_stats(self):
+        """Get statistics for this account's calendars"""
+        from django.db import models
+        
+        stats = self.calendars.aggregate(
+            total_calendars=models.Count("id"),
+            sync_enabled_calendars=models.Count("id", filter=models.Q(sync_enabled=True)),
+            primary_calendars=models.Count("id", filter=models.Q(is_primary=True)),
+        )
+        
+        return {
+            "total_calendars": stats["total_calendars"] or 0,
+            "sync_enabled_calendars": stats["sync_enabled_calendars"] or 0,
+            "primary_calendars": stats["primary_calendars"] or 0,
+        }
+
+    def get_last_successful_sync(self):
+        """Get the most recent successful sync for this account"""
+        return self.sync_logs.filter(status="success").order_by("-completed_at").first()
+
+    def get_sync_health_status(self):
+        """Get comprehensive sync health status"""
+        if not self.is_active:
+            return {
+                "status": "inactive",
+                "message": "Account is inactive",
+                "can_sync": False,
+            }
+        
+        if self.is_token_expired:
+            return {
+                "status": "expired",
+                "message": "Token has expired and needs refresh",
+                "can_sync": False,
+            }
+        
+        if self.needs_token_refresh():
+            return {
+                "status": "refresh_needed",
+                "message": "Token will expire soon and should be refreshed",
+                "can_sync": True,
+            }
+        
+        # Check for recent sync failures
+        recent_failures = self.sync_logs.filter(
+            status="error",
+            started_at__gte=timezone.now() - timezone.timedelta(hours=24)
+        ).count()
+        
+        if recent_failures > 3:
+            return {
+                "status": "failing",
+                "message": f"{recent_failures} sync failures in the last 24 hours",
+                "can_sync": True,
+            }
+        
+        return {
+            "status": "healthy",
+            "message": "Account is ready for sync",
+            "can_sync": True,
+        }
+
+    def has_valid_credentials(self):
+        """Check if account has valid credentials"""
+        return (
+            self.is_active
+            and bool(self.get_access_token())
+            and bool(self.get_refresh_token())
+            and not self.is_token_expired
+        )
+
+    def get_calendars_for_sync(self):
+        """Get calendars that are enabled for synchronization"""
+        return self.calendars.filter(sync_enabled=True)
+
+    def deactivate_with_reason(self, reason="Manual deactivation"):
+        """Deactivate account with logging"""
+        self.is_active = False
+        self.save(update_fields=["is_active"])
+        
+        logger.info(f"Deactivated account {self.email}: {reason}")
+        return True
+
 
 class Calendar(models.Model):
     """Individual calendar configuration"""
@@ -122,6 +291,10 @@ class Calendar(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Custom managers
+    objects = models.Manager()  # Default manager
+    sync_ready = SyncEnabledCalendarManager()  # Sync-enabled calendars only
 
     class Meta:
         unique_together = ["calendar_account", "google_calendar_id"]
@@ -166,6 +339,79 @@ class Calendar(models.Model):
             and self.calendar_account.is_active
             and self.calendar_account.user.profile.sync_enabled
         )
+
+    def toggle_sync(self):
+        """Toggle sync status - business logic in model"""
+        self.sync_enabled = not self.sync_enabled
+        self.save(update_fields=["sync_enabled"])
+        return self.sync_enabled
+
+    def can_sync(self):
+        """Check if calendar can be synced with detailed reason"""
+        if not self.calendar_account.is_active:
+            return False, "Account is inactive"
+        
+        if self.calendar_account.is_token_expired:
+            return False, "Token has expired"
+        
+        if not self.sync_enabled:
+            return False, "Sync is disabled for this calendar"
+        
+        try:
+            if not self.calendar_account.user.profile.sync_enabled:
+                return False, "Global sync is disabled for user"
+        except AttributeError:
+            # Handle missing user profile
+            return False, "User profile not configured"
+        
+        return True, "Calendar is ready for sync"
+
+    def get_sync_status_display(self):
+        """Human-readable sync status"""
+        can_sync, reason = self.can_sync()
+        if can_sync:
+            return "Sync Enabled"
+        return reason
+
+    def get_last_sync_time(self):
+        """Get last successful sync time for this calendar's account"""
+        last_sync = self.calendar_account.sync_logs.filter(
+            status="success"
+        ).order_by("-completed_at").first()
+        
+        return last_sync.completed_at if last_sync else None
+
+    def get_event_counts(self):
+        """Get event statistics for this calendar"""
+        from django.db import models
+        
+        stats = self.events.aggregate(
+            total_events=models.Count("id"),
+            busy_blocks=models.Count("id", filter=models.Q(is_busy_block=True)),
+            regular_events=models.Count("id", filter=models.Q(is_busy_block=False)),
+        )
+        
+        return {
+            "total": stats["total_events"] or 0,
+            "busy_blocks": stats["busy_blocks"] or 0,
+            "regular_events": stats["regular_events"] or 0,
+        }
+
+    def has_recent_activity(self, days=7):
+        """Check if calendar has recent activity"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        cutoff_date = timezone.now() - timedelta(days=days)
+        return self.events.filter(updated_at__gte=cutoff_date).exists()
+
+    def validate_for_sync(self):
+        """Validate calendar is ready for synchronization"""
+        can_sync, reason = self.can_sync()
+        if not can_sync:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(f"Calendar cannot be synced: {reason}")
+        return True
 
 
 class Event(models.Model):
