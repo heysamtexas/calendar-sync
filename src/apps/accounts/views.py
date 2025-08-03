@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 import logging
+import os
 
 from django.conf import settings
 from django.contrib import messages
@@ -14,6 +15,9 @@ from google_auth_oauthlib.flow import Flow
 
 from apps.calendars.models import CalendarAccount
 
+# Allow insecure transport for local development (HTTP instead of HTTPS)
+if settings.DEBUG:
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 logger = logging.getLogger(__name__)
 
