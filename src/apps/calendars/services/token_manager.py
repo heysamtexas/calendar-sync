@@ -3,6 +3,7 @@
 from datetime import timedelta
 import logging
 import time
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.utils import timezone
@@ -64,7 +65,7 @@ class TokenManager:
             if self.account.token_expires_at:
                 if self.account.token_expires_at.tzinfo is not None:
                     # Convert timezone-aware to UTC naive
-                    credentials.expiry = self.account.token_expires_at.astimezone(timezone.utc).replace(tzinfo=None)
+                    credentials.expiry = self.account.token_expires_at.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
                 else:
                     credentials.expiry = self.account.token_expires_at
             
@@ -106,7 +107,7 @@ class TokenManager:
                 if credentials.expiry:
                     if credentials.expiry.tzinfo is None:
                         # If timezone-naive, assume UTC and make it timezone-aware
-                        expiry_aware = timezone.make_aware(credentials.expiry, timezone.utc)
+                        expiry_aware = timezone.make_aware(credentials.expiry, ZoneInfo('UTC'))
                     else:
                         expiry_aware = credentials.expiry
                     self.account.token_expires_at = expiry_aware
