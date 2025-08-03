@@ -1,8 +1,9 @@
 """Dashboard business logic service"""
 
 from django.db import models
-from apps.calendars.services.base import BaseService
+
 from apps.calendars.models import CalendarAccount, SyncLog
+from apps.calendars.services.base import BaseService
 
 
 class DashboardService(BaseService):
@@ -105,9 +106,9 @@ class DashboardService(BaseService):
         stats = {}
 
         # Recent sync activity
-        recent_syncs = SyncLog.objects.filter(calendar_account__user=self.user).order_by(
-            "-started_at"
-        )[:50]
+        recent_syncs = SyncLog.objects.filter(
+            calendar_account__user=self.user
+        ).order_by("-started_at")[:50]
 
         # Success rate calculation
         total_syncs = recent_syncs.count()
@@ -118,16 +119,13 @@ class DashboardService(BaseService):
         status_counts = recent_syncs.values("status").annotate(count=models.Count("id"))
 
         # Calendar activity
-        calendar_stats = (
-            CalendarAccount.objects.filter(user=self.user)
-            .aggregate(
-                total_accounts=models.Count("id"),
-                active_accounts=models.Count("id", filter=models.Q(is_active=True)),
-                total_calendars=models.Count("calendars"),
-                sync_enabled_calendars=models.Count(
-                    "calendars", filter=models.Q(calendars__sync_enabled=True)
-                ),
-            )
+        calendar_stats = CalendarAccount.objects.filter(user=self.user).aggregate(
+            total_accounts=models.Count("id"),
+            active_accounts=models.Count("id", filter=models.Q(is_active=True)),
+            total_calendars=models.Count("calendars"),
+            sync_enabled_calendars=models.Count(
+                "calendars", filter=models.Q(calendars__sync_enabled=True)
+            ),
         )
 
         stats.update(
@@ -135,7 +133,9 @@ class DashboardService(BaseService):
                 "recent_syncs": recent_syncs[:10],  # Limit for display
                 "total_syncs": total_syncs,
                 "success_rate": round(success_rate, 1),
-                "status_distribution": {item["status"]: item["count"] for item in status_counts},
+                "status_distribution": {
+                    item["status"]: item["count"] for item in status_counts
+                },
                 **calendar_stats,
             }
         )
@@ -155,9 +155,7 @@ class DashboardService(BaseService):
             issues.append(f"{inactive_accounts} inactive account(s) need attention")
 
         # Check for expired tokens
-        expired_tokens = CalendarAccount.objects.filter(
-            user=self.user, is_active=True
-        )
+        expired_tokens = CalendarAccount.objects.filter(user=self.user, is_active=True)
         expired_count = sum(1 for account in expired_tokens if account.is_token_expired)
         if expired_count > 0:
             issues.append(f"{expired_count} account(s) have expired tokens")
@@ -172,12 +170,17 @@ class DashboardService(BaseService):
             issues.append(f"{recent_failures} recent sync failure(s)")
 
         # Check for calendars with sync enabled but account inactive
-        orphaned_calendars = (
-            CalendarAccount.objects.filter(user=self.user, is_active=False)
-            .aggregate(orphaned=models.Count("calendars", filter=models.Q(calendars__sync_enabled=True)))["orphaned"]
-        )
+        orphaned_calendars = CalendarAccount.objects.filter(
+            user=self.user, is_active=False
+        ).aggregate(
+            orphaned=models.Count(
+                "calendars", filter=models.Q(calendars__sync_enabled=True)
+            )
+        )["orphaned"]
         if orphaned_calendars > 0:
-            issues.append(f"{orphaned_calendars} calendar(s) enabled but account inactive")
+            issues.append(
+                f"{orphaned_calendars} calendar(s) enabled but account inactive"
+            )
 
         health_data.update(
             {

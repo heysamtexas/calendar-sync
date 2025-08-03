@@ -1,10 +1,16 @@
 """OAuth business logic service"""
 
+from datetime import timedelta
+
 from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta
-from apps.calendars.services.base import BaseService, ResourceNotFoundError, ExternalServiceError
+
 from apps.calendars.models import CalendarAccount
+from apps.calendars.services.base import (
+    BaseService,
+    ExternalServiceError,
+    ResourceNotFoundError,
+)
 
 
 class OAuthService(BaseService):
@@ -17,7 +23,7 @@ class OAuthService(BaseService):
                 # Extract account information safely
                 email = self._extract_email_safely(user_info)
                 expires_at = self._calculate_token_expiry(credentials)
-                
+
                 # Use email as the unique identifier for the Google account
                 # This ensures each Google account creates a separate CalendarAccount record
                 google_account_id = email
@@ -71,7 +77,9 @@ class OAuthService(BaseService):
                 }
 
         except Exception as e:
-            self._handle_error(e, "oauth_callback", email=email if "email" in locals() else "unknown")
+            self._handle_error(
+                e, "oauth_callback", email=email if "email" in locals() else "unknown"
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -91,10 +99,12 @@ class OAuthService(BaseService):
             if hasattr(credentials, "expiry") and credentials.expiry:
                 # Ensure it's a datetime object (not a mock)
                 from datetime import datetime
+
                 if isinstance(credentials.expiry, datetime):
                     if credentials.expiry.tzinfo is None:
                         # Convert naive UTC to timezone-aware
                         import zoneinfo
+
                         expiry_aware = timezone.make_aware(
                             credentials.expiry, zoneinfo.ZoneInfo("UTC")
                         )
@@ -180,7 +190,7 @@ class OAuthService(BaseService):
             raise ResourceNotFoundError(f"Account {account_id} not found")
         except Exception as e:
             self._handle_error(e, "account_disconnect", account_id=account_id)
-            raise ExternalServiceError(f"Failed to disconnect account: {str(e)}")
+            raise ExternalServiceError(f"Failed to disconnect account: {e!s}")
 
     def refresh_account_token(self, account_id):
         """Refresh OAuth token for an account"""
@@ -212,7 +222,7 @@ class OAuthService(BaseService):
             raise ResourceNotFoundError(f"Account {account_id} not found")
         except Exception as e:
             self._handle_error(e, "token_refresh", account_id=account_id)
-            raise ExternalServiceError(f"Token refresh failed: {str(e)}")
+            raise ExternalServiceError(f"Token refresh failed: {e!s}")
 
     def get_account_status(self, account_id):
         """Get comprehensive account status information"""
@@ -225,9 +235,13 @@ class OAuthService(BaseService):
                 "account": account,
                 "is_active": account.is_active,
                 "is_token_expired": account.is_token_expired,
-                "needs_refresh": getattr(account, "needs_token_refresh", lambda: False)(),
+                "needs_refresh": getattr(
+                    account, "needs_token_refresh", lambda: False
+                )(),
                 "calendar_count": account.calendars.count(),
-                "sync_enabled_count": account.calendars.filter(sync_enabled=True).count(),
+                "sync_enabled_count": account.calendars.filter(
+                    sync_enabled=True
+                ).count(),
                 "last_sync": account.sync_logs.filter(status="success")
                 .order_by("-completed_at")
                 .first(),

@@ -132,7 +132,7 @@ class SyncEngine:
             raise
 
     def _process_google_event(self, calendar: Calendar, google_event: dict):
-        """Process a single Google Calendar event"""
+        """Process a single Google Calendar event with decline filtering"""
         google_event_id = google_event.get("id")
         if not google_event_id:
             return
@@ -146,30 +146,62 @@ class SyncEngine:
         ):
             return
 
+        # Extract event data including decline status
+        event_data = self._extract_event_data(google_event)
+
+        # Skip declined meetings (privacy-first: don't sync declined invites)
+        if event_data.get("user_declined", False):
+            logger.debug(f"Skipping declined meeting: {event_data['title']}")
+            return
+
+        # Remove user_declined from data (not stored in database)
+        event_data_to_store = {
+            k: v for k, v in event_data.items() if k != "user_declined"
+        }
+
         # Get or create event
         event, created = Event.objects.get_or_create(
             calendar=calendar,
             google_event_id=google_event_id,
-            defaults=self._extract_event_data(google_event),
+            defaults=event_data_to_store,
         )
 
         if created:
-            logger.debug(f"Created new event: {event.title}")
+            logger.debug(
+                f"Created new event: {event.title} (Meeting: {event.is_meeting_invite})"
+            )
             self.sync_results["events_created"] += 1
-        else:
-            # Update existing event if changed
-            updated_data = self._extract_event_data(google_event)
-            if self._event_needs_update(event, updated_data):
-                for field, value in updated_data.items():
-                    setattr(event, field, value)
-                event.save()
-                logger.debug(f"Updated event: {event.title}")
-                self.sync_results["events_updated"] += 1
+        # Update existing event if changed
+        elif self._event_needs_update(event, event_data_to_store):
+            for field, value in event_data_to_store.items():
+                setattr(event, field, value)
+            event.save()
+            logger.debug(
+                f"Updated event: {event.title} (Meeting: {event.is_meeting_invite})"
+            )
+            self.sync_results["events_updated"] += 1
 
     def _extract_event_data(self, google_event: dict) -> dict:
-        """Extract event data from Google Calendar event"""
+        """Extract event data from Google Calendar event with meeting invite detection"""
         start_time = self._parse_event_time(google_event.get("start", {}))
         end_time = self._parse_event_time(google_event.get("end", {}))
+
+        # Extract attendee information for meeting detection (privacy-first approach)
+        attendees = google_event.get("attendees", [])
+        is_meeting_invite = len(attendees) > 0
+
+        # Check if the user declined this meeting (skip from sync if declined)
+        user_declined = False
+        if is_meeting_invite:
+            # Find the current user's response status in attendees
+            for attendee in attendees:
+                # Check if this is the calendar owner (primary invitee)
+                if (
+                    attendee.get("self", False)
+                    and attendee.get("responseStatus") == "declined"
+                ):
+                    user_declined = True
+                    break
 
         return {
             "title": google_event.get("summary", "Untitled Event"),
@@ -177,6 +209,8 @@ class SyncEngine:
             "start_time": start_time,
             "end_time": end_time,
             "is_all_day": "date" in google_event.get("start", {}),
+            "is_meeting_invite": is_meeting_invite,
+            "user_declined": user_declined,  # Used for filtering, not stored
         }
 
     def _parse_event_time(self, time_data: dict) -> datetime:
@@ -203,6 +237,7 @@ class SyncEngine:
             "start_time",
             "end_time",
             "is_all_day",
+            "is_meeting_invite",
         ]
 
         for field in fields_to_check:
@@ -241,14 +276,18 @@ class SyncEngine:
                 calendar_account__user__isnull=False,  # Has associated user
                 sync_enabled=True,
                 calendar_account__is_active=True,
-            ).select_related('calendar_account', 'calendar_account__user')
+            ).select_related("calendar_account", "calendar_account__user")
         )
 
         if len(all_calendars) < 2:
-            logger.info("Need at least 2 sync-enabled calendars for busy block creation")
+            logger.info(
+                "Need at least 2 sync-enabled calendars for busy block creation"
+            )
             return
 
-        logger.info(f"Creating busy blocks across {len(all_calendars)} calendars from multiple accounts")
+        logger.info(
+            f"Creating busy blocks across {len(all_calendars)} calendars from multiple accounts"
+        )
 
         # Create busy blocks from every calendar to every other calendar
         # This replaces the per-account limitation with global user-wide sync
@@ -258,12 +297,17 @@ class SyncEngine:
                     continue  # Skip self
 
                 # Only create busy blocks for calendars belonging to the same user
-                if source_calendar.calendar_account.user_id != target_calendar.calendar_account.user_id:
+                if (
+                    source_calendar.calendar_account.user_id
+                    != target_calendar.calendar_account.user_id
+                ):
                     continue
 
                 self._create_cross_account_busy_blocks(source_calendar, target_calendar)
 
-    def _create_cross_account_busy_blocks(self, source_calendar: Calendar, target_calendar: Calendar):
+    def _create_cross_account_busy_blocks(
+        self, source_calendar: Calendar, target_calendar: Calendar
+    ):
         """Create busy blocks from source calendar to target calendar (may be different accounts)"""
         try:
             # Get time range for busy blocks (next 90 days)
@@ -279,14 +323,18 @@ class SyncEngine:
             )
 
             if not source_events.exists():
-                logger.debug(f"No events found in source calendar {source_calendar.name}")
+                logger.debug(
+                    f"No events found in source calendar {source_calendar.name}"
+                )
                 return
 
             # Create client for the TARGET calendar's account (may be different from source)
             target_client = GoogleCalendarClient(target_calendar.calendar_account)
 
             # Clean up existing busy blocks from this source calendar
-            self._cleanup_cross_account_busy_blocks(target_client, source_calendar, target_calendar)
+            self._cleanup_cross_account_busy_blocks(
+                target_client, source_calendar, target_calendar
+            )
 
             # Create new busy blocks in target calendar
             for event in source_events:
@@ -306,7 +354,7 @@ class SyncEngine:
                         busy_block_description,
                     )
 
-                    # Save busy block in our database
+                    # Save busy block in our database with meeting status from source
                     Event.objects.create(
                         calendar=target_calendar,
                         google_event_id=google_event["id"],
@@ -315,21 +363,32 @@ class SyncEngine:
                         start_time=event.start_time,
                         end_time=event.end_time,
                         is_busy_block=True,
+                        is_meeting_invite=event.is_meeting_invite,  # Inherit from source event
                         source_event=event,
                         busy_block_tag=busy_block_description,
                     )
 
                     self.sync_results["busy_blocks_created"] += 1
-                    logger.debug(f"Created busy block in {target_calendar.name} for event {event.title}")
+                    logger.debug(
+                        f"Created busy block in {target_calendar.name} for event {event.title}"
+                    )
 
                 except Exception as e:
-                    logger.warning(f"Failed to create busy block for event {event.title}: {e}")
+                    logger.warning(
+                        f"Failed to create busy block for event {event.title}: {e}"
+                    )
 
         except Exception as e:
-            logger.error(f"Failed to create cross-account busy blocks from {source_calendar.name} to {target_calendar.name}: {e}")
+            logger.error(
+                f"Failed to create cross-account busy blocks from {source_calendar.name} to {target_calendar.name}: {e}"
+            )
 
-    def _cleanup_cross_account_busy_blocks(self, target_client: GoogleCalendarClient, 
-                                         source_calendar: Calendar, target_calendar: Calendar):
+    def _cleanup_cross_account_busy_blocks(
+        self,
+        target_client: GoogleCalendarClient,
+        source_calendar: Calendar,
+        target_calendar: Calendar,
+    ):
         """Remove existing busy blocks from source calendar in target calendar (enhanced for cross-account)"""
         try:
             # Enhanced tag pattern includes source account email
@@ -354,7 +413,9 @@ class SyncEngine:
 
                 deleted_count = sum(1 for success in results.values() if success)
                 self.sync_results["busy_blocks_deleted"] += deleted_count
-                logger.debug(f"Cleaned up {deleted_count} existing busy blocks from {source_calendar.name} in {target_calendar.name}")
+                logger.debug(
+                    f"Cleaned up {deleted_count} existing busy blocks from {source_calendar.name} in {target_calendar.name}"
+                )
 
         except Exception as e:
             logger.warning(f"Failed to cleanup busy blocks: {e}")
@@ -413,7 +474,7 @@ class SyncEngine:
                     busy_block_description,
                 )
 
-                # Save busy block in our database
+                # Save busy block in our database with meeting status from source
                 Event.objects.create(
                     calendar=target_calendar,
                     google_event_id=google_event["id"],
@@ -422,6 +483,7 @@ class SyncEngine:
                     start_time=event.start_time,
                     end_time=event.end_time,
                     is_busy_block=True,
+                    is_meeting_invite=event.is_meeting_invite,  # Inherit from source event
                     source_event=event,
                     busy_block_tag=busy_block_description,
                 )

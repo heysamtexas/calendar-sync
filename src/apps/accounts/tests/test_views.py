@@ -81,7 +81,9 @@ class OAuthViewsTest(TestCase):
         session.save()
 
         # Call callback with wrong state
-        response = self.client.get(reverse("accounts:auth_callback"), {"state": "wrong_state"})
+        response = self.client.get(
+            reverse("accounts:auth_callback"), {"state": "wrong_state"}
+        )
 
         # Should redirect to dashboard with error
         self.assertEqual(response.status_code, 302)
@@ -99,7 +101,8 @@ class OAuthViewsTest(TestCase):
 
         # Call callback with error
         response = self.client.get(
-            reverse("accounts:auth_callback"), {"state": "test_state", "error": "access_denied"}
+            reverse("accounts:auth_callback"),
+            {"state": "test_state", "error": "access_denied"},
         )
 
         # Should redirect to dashboard with error
@@ -137,16 +140,19 @@ class OAuthViewsTest(TestCase):
 
         # Call callback with success
         response = self.client.get(
-            reverse("accounts:auth_callback"), {"state": "test_state", "code": "auth_code_123"}
+            reverse("accounts:auth_callback"),
+            {"state": "test_state", "code": "auth_code_123"},
         )
 
         # Should redirect to account detail page
         self.assertEqual(response.status_code, 302)
-        
+
         # Should create calendar account
         self.assertTrue(CalendarAccount.objects.filter(user=self.user).exists())
         account = CalendarAccount.objects.get(user=self.user)
-        self.assertEqual(response.url, reverse("dashboard:account_detail", args=[account.id]))
+        self.assertEqual(
+            response.url, reverse("dashboard:account_detail", args=[account.id])
+        )
         self.assertEqual(account.email, "test@gmail.com")
         self.assertTrue(account.is_active)
 
@@ -172,7 +178,9 @@ class OAuthViewsTest(TestCase):
         self.client.login(username="testuser", password="testpass123")
 
         # Disconnect account
-        response = self.client.get(reverse("accounts:disconnect_account", args=[account.id]))
+        response = self.client.get(
+            reverse("accounts:disconnect_account", args=[account.id])
+        )
 
         # Should redirect to dashboard
         self.assertEqual(response.status_code, 302)
@@ -212,7 +220,9 @@ class OAuthViewsTest(TestCase):
         self.client.login(username="testuser", password="testpass123")
 
         # Try to disconnect other user's account
-        response = self.client.get(reverse("accounts:disconnect_account", args=[account.id]))
+        response = self.client.get(
+            reverse("accounts:disconnect_account", args=[account.id])
+        )
 
         # Should redirect to dashboard
         self.assertEqual(response.status_code, 302)

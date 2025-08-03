@@ -60,15 +60,17 @@ class TokenManager:
                 client_secret=getattr(settings, "GOOGLE_OAUTH_CLIENT_SECRET", ""),
                 scopes=["https://www.googleapis.com/auth/calendar"],
             )
-            
+
             # Handle timezone for credentials.expiry (Google's library expects UTC naive)
             if self.account.token_expires_at:
                 if self.account.token_expires_at.tzinfo is not None:
                     # Convert timezone-aware to UTC naive
-                    credentials.expiry = self.account.token_expires_at.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+                    credentials.expiry = self.account.token_expires_at.astimezone(
+                        ZoneInfo("UTC")
+                    ).replace(tzinfo=None)
                 else:
                     credentials.expiry = self.account.token_expires_at
-            
+
             return credentials
 
         except Exception as e:
@@ -102,16 +104,18 @@ class TokenManager:
 
                 # Save new tokens with proper timezone handling
                 self.account.set_access_token(credentials.token)
-                
+
                 # Ensure expiry is timezone-aware
                 if credentials.expiry:
                     if credentials.expiry.tzinfo is None:
                         # If timezone-naive, assume UTC and make it timezone-aware
-                        expiry_aware = timezone.make_aware(credentials.expiry, ZoneInfo('UTC'))
+                        expiry_aware = timezone.make_aware(
+                            credentials.expiry, ZoneInfo("UTC")
+                        )
                     else:
                         expiry_aware = credentials.expiry
                     self.account.token_expires_at = expiry_aware
-                
+
                 self.account.save()
 
                 logger.info(f"Successfully refreshed token for {self.account.email}")

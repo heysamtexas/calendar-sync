@@ -260,6 +260,7 @@ class SyncEngineTest(TestCase):
             "start_time": event.start_time,
             "end_time": event.end_time,
             "is_all_day": False,
+            "is_meeting_invite": False,
         }
         self.assertFalse(engine._event_needs_update(event, same_data))
 

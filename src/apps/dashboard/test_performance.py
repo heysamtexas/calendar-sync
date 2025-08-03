@@ -1,7 +1,7 @@
 """Performance tests for dashboard views query optimization"""
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 
@@ -16,13 +16,17 @@ User = get_user_model()
     DEBUG=True,  # Enable query counting
     # Disable debug toolbar for tests to avoid URL resolution issues
     INSTALLED_APPS=[
-        app for app in __import__('django.conf', fromlist=['settings']).settings.INSTALLED_APPS 
-        if app != 'debug_toolbar'
+        app
+        for app in __import__(
+            "django.conf", fromlist=["settings"]
+        ).settings.INSTALLED_APPS
+        if app != "debug_toolbar"
     ],
     MIDDLEWARE=[
-        mw for mw in __import__('django.conf', fromlist=['settings']).settings.MIDDLEWARE 
-        if 'debug_toolbar' not in mw
-    ]
+        mw
+        for mw in __import__("django.conf", fromlist=["settings"]).settings.MIDDLEWARE
+        if "debug_toolbar" not in mw
+    ],
 )
 class DashboardPerformanceTestCase(TransactionTestCase):
     """Test database query performance for dashboard views"""
@@ -70,10 +74,14 @@ class DashboardPerformanceTestCase(TransactionTestCase):
                         is_busy_block=False,
                     )
                     regular_events.append(event)
-                
+
                 # Create busy blocks with proper source events
                 for k in range(2):  # 2 busy blocks per calendar
-                    source_event = regular_events[k] if k < len(regular_events) else regular_events[0]
+                    source_event = (
+                        regular_events[k]
+                        if k < len(regular_events)
+                        else regular_events[0]
+                    )
                     Event.objects.create(
                         calendar=calendar,
                         google_event_id=f"busy_{i}_{j}_{k}",
@@ -117,7 +125,9 @@ class DashboardPerformanceTestCase(TransactionTestCase):
         self.assertIn("active_accounts", response.context)
 
         # Verify statistics are correct
-        self.assertEqual(response.context["total_calendars"], 12)  # 3 accounts × 4 calendars
+        self.assertEqual(
+            response.context["total_calendars"], 12
+        )  # 3 accounts × 4 calendars
         self.assertEqual(response.context["active_accounts"], 3)  # All accounts active
 
     def test_dashboard_view_data_accuracy(self):
@@ -173,7 +183,9 @@ class DashboardPerformanceTestCase(TransactionTestCase):
         for calendar in calendars:
             self.assertTrue(hasattr(calendar, "event_count"))
             self.assertTrue(hasattr(calendar, "busy_block_count"))
-            self.assertEqual(calendar.event_count, 5)  # 3 regular + 2 busy blocks per calendar
+            self.assertEqual(
+                calendar.event_count, 5
+            )  # 3 regular + 2 busy blocks per calendar
             self.assertEqual(calendar.busy_block_count, 2)  # 2 busy blocks per calendar
 
         # Verify sync logs
@@ -212,11 +224,11 @@ class DashboardPerformanceTestCase(TransactionTestCase):
 
         # Verify all required data is accessible without additional queries
         calendar_accounts = response.context["calendar_accounts"]
-        
+
         # Access annotated fields (should not trigger additional queries)
         total_calendar_count = sum(acc.calendar_count for acc in calendar_accounts)
         total_active_count = sum(acc.active_calendar_count for acc in calendar_accounts)
-        
+
         self.assertEqual(total_calendar_count, 12)
         self.assertEqual(total_active_count, 6)  # 2 active per account × 3 accounts
 
@@ -235,10 +247,10 @@ class DashboardPerformanceTestCase(TransactionTestCase):
 
         # Verify prefetched data is accessible without additional queries
         calendars = response.context["calendars"]
-        
+
         # Access annotated fields (should not trigger additional queries)
         total_events = sum(cal.event_count for cal in calendars)
         total_busy_blocks = sum(cal.busy_block_count for cal in calendars)
-        
+
         self.assertEqual(total_events, 20)  # 5 events × 4 calendars
         self.assertEqual(total_busy_blocks, 8)  # 2 busy blocks × 4 calendars

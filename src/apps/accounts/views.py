@@ -11,8 +11,10 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from google_auth_oauthlib.flow import Flow
 
+from apps.calendars.services import ExternalServiceError, ResourceNotFoundError
+
 from .services import OAuthService
-from apps.calendars.services import ResourceNotFoundError, ExternalServiceError
+
 
 # Allow insecure transport for local development (HTTP instead of HTTPS)
 if settings.DEBUG:
@@ -38,7 +40,9 @@ def get_oauth_flow(request: HttpRequest) -> Flow:
                 "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [request.build_absolute_uri(reverse("accounts:auth_callback"))],
+                "redirect_uris": [
+                    request.build_absolute_uri(reverse("accounts:auth_callback"))
+                ],
             }
         },
         scopes=SCOPES,
@@ -69,10 +73,10 @@ def oauth_initiate(request: HttpRequest) -> HttpResponse:
     except Exception as e:
         logger.error(f"OAuth initiation failed for user {request.user.username}: {e!s}")
         logger.error(f"Exception type: {type(e).__name__}")
-        logger.error(f"Exception details: {str(e)}")
+        logger.error(f"Exception details: {e!s}")
         messages.error(
             request,
-            f"Unable to connect to Google Calendar. Error: {str(e)}. "
+            f"Unable to connect to Google Calendar. Error: {e!s}. "
             "Please verify your Google OAuth credentials and redirect URI configuration.",
         )
         return redirect("dashboard:index")
@@ -117,40 +121,46 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
 
         # Get user info from Google (get actual email address)
         from googleapiclient.discovery import build
-        
+
         try:
             # Use OAuth2 API to get user profile information
             oauth2_service = build("oauth2", "v2", credentials=credentials)
             user_profile = oauth2_service.userinfo().get().execute()
             user_email = user_profile.get("email", "Unknown")
-            
+
             logger.info(f"DEBUG: OAuth2 user profile: {user_profile}")
             logger.info(f"DEBUG: Extracted email: {user_email}")
-            
+
             # Fallback: try to get primary calendar email if OAuth2 API fails
             if user_email == "Unknown":
                 calendar_service = build("calendar", "v3", credentials=credentials)
                 calendars_result = calendar_service.calendarList().list().execute()
                 calendars = calendars_result.get("items", [])
-                
+
                 logger.info(f"DEBUG: Fallback - found {len(calendars)} calendars")
-                
+
                 # Find the primary calendar
                 for calendar in calendars:
-                    logger.info(f"DEBUG: Calendar - id: {calendar.get('id')}, primary: {calendar.get('primary')}, summary: {calendar.get('summary')}")
+                    logger.info(
+                        f"DEBUG: Calendar - id: {calendar.get('id')}, primary: {calendar.get('primary')}, summary: {calendar.get('summary')}"
+                    )
                     if calendar.get("primary", False):
-                        user_email = calendar.get("id", "Unknown")  # Calendar ID is usually the email
-                        logger.info(f"DEBUG: Using primary calendar email: {user_email}")
+                        user_email = calendar.get(
+                            "id", "Unknown"
+                        )  # Calendar ID is usually the email
+                        logger.info(
+                            f"DEBUG: Using primary calendar email: {user_email}"
+                        )
                         break
-                
+
                 # Final fallback: use first calendar ID
                 if user_email == "Unknown" and calendars:
                     user_email = calendars[0].get("id", "Unknown")
                     logger.info(f"DEBUG: Using first calendar email: {user_email}")
-            
+
             user_info = {"email": user_email}
             logger.info(f"DEBUG: Final user_info: {user_info}")
-            
+
         except Exception as e:
             logger.warning(f"Failed to get user email: {e}")
             user_info = {"email": "Unknown"}
@@ -186,12 +196,14 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
     try:
         oauth_service = OAuthService(request.user)
         result = oauth_service.disconnect_account(account_id)
-        
+
         if result["success"]:
             messages.success(request, result["message"])
         else:
-            messages.error(request, result.get("message", "Failed to disconnect account"))
-            
+            messages.error(
+                request, result.get("message", "Failed to disconnect account")
+            )
+
     except ResourceNotFoundError:
         messages.error(
             request,
@@ -207,5 +219,3 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
         )
 
     return redirect("dashboard:index")
-
-

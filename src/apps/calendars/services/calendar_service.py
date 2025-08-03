@@ -1,9 +1,14 @@
 """Calendar business logic service"""
 
-from django.db import transaction, models
-from django.core.exceptions import ValidationError
-from .base import BaseService, ResourceNotFoundError, BusinessLogicError, ExternalServiceError
+from django.db import models, transaction
+
 from ..models import Calendar, CalendarAccount
+from .base import (
+    BaseService,
+    BusinessLogicError,
+    ExternalServiceError,
+    ResourceNotFoundError,
+)
 
 
 class CalendarService(BaseService):
@@ -82,7 +87,9 @@ class CalendarService(BaseService):
             account = CalendarAccount.objects.get(id=account_id, user=self.user)
 
             if not account.is_active:
-                raise BusinessLogicError("Cannot refresh calendars for inactive account")
+                raise BusinessLogicError(
+                    "Cannot refresh calendars for inactive account"
+                )
 
             # Use existing GoogleCalendarClient
             from .google_calendar_client import GoogleCalendarClient
@@ -92,7 +99,7 @@ class CalendarService(BaseService):
             try:
                 calendars_data = client.list_calendars()
             except Exception as e:
-                raise ExternalServiceError(f"Failed to fetch calendars: {str(e)}")
+                raise ExternalServiceError(f"Failed to fetch calendars: {e!s}")
 
             with transaction.atomic():
                 calendars_created = 0
@@ -137,7 +144,7 @@ class CalendarService(BaseService):
             raise
         except Exception as e:
             self._handle_error(e, "calendar_refresh", account_id=account_id)
-            raise ExternalServiceError(f"Calendar refresh failed: {str(e)}")
+            raise ExternalServiceError(f"Calendar refresh failed: {e!s}")
 
     def get_calendar_with_stats(self, calendar_id):
         """Get calendar with event statistics"""

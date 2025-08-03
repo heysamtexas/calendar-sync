@@ -1,8 +1,9 @@
 """Base service class for business logic operations"""
 
 import logging
-from django.db import transaction
-from django.core.exceptions import ValidationError, PermissionDenied
+
+from django.core.exceptions import PermissionDenied
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class BaseService:
     def _handle_error(self, error, operation, **context):
         """Standardized error handling"""
         self.logger.error(
-            f"Error in {operation}: {str(error)}",
+            f"Error in {operation}: {error!s}",
             extra={
                 "error_type": type(error).__name__,
                 "user_id": self.user.id if self.user else None,
@@ -60,22 +61,14 @@ class BaseService:
 class ServiceError(Exception):
     """Base exception for service layer errors"""
 
-    pass
-
 
 class ResourceNotFoundError(ServiceError):
     """Resource not found in service operation"""
-
-    pass
 
 
 class BusinessLogicError(ServiceError):
     """Business logic validation error"""
 
-    pass
-
 
 class ExternalServiceError(ServiceError):
     """Error from external service (Google API, etc.)"""
-
-    pass
