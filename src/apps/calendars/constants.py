@@ -26,12 +26,35 @@ class SyncConstants:
 class OAuth:
     """OAuth configuration constants"""
 
-    SCOPES = ["https://www.googleapis.com/auth/calendar"]
+    SCOPES: list[str] = ["https://www.googleapis.com/auth/calendar"]
     REDIRECT_PATH = "/auth/callback/"
     STATE_LENGTH = 32
 
     # Token expiry buffer (refresh tokens before they expire)
     TOKEN_REFRESH_BUFFER_MINUTES = 10
+
+
+class TokenConstants:
+    """Token management configuration"""
+
+    # Buffer time before token expiration to trigger refresh (minutes)
+    REFRESH_BUFFER_MINUTES = 10
+
+    # Maximum retry attempts for token refresh
+    MAX_RETRY_ATTEMPTS = 3
+
+    # Base delay for exponential backoff (seconds)
+    BASE_RETRY_DELAY = 1
+
+    # Maximum delay between retries (seconds)
+    MAX_RETRY_DELAY = 60
+
+    # Default token expiry duration (hours) - Google tokens typically last 1 hour
+    DEFAULT_TOKEN_EXPIRY_HOURS = 1
+
+    # Notification settings
+    NOTIFY_ON_REFRESH_FAILURE = True
+    NOTIFY_ON_ACCOUNT_DEACTIVATION = True
 
 
 class BusyBlock:

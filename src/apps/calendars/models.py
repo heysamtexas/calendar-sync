@@ -239,9 +239,8 @@ class Event(models.Model):
         if self.title and not self.title.strip():
             raise ValidationError({"title": "Event title cannot be empty"})
 
-        if self.start_time and self.end_time:
-            if self.start_time >= self.end_time:
-                raise ValidationError({"end_time": "End time must be after start time"})
+        if self.start_time and self.end_time and self.start_time >= self.end_time:
+            raise ValidationError({"end_time": "End time must be after start time"})
 
         # Validate busy block has source event
         if self.is_busy_block and not self.source_event:
