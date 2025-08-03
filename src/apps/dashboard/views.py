@@ -93,3 +93,41 @@ def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse
     except Exception as e:
         logger.error(f"Toggle failed for calendar {calendar_id}: {e}")
         return HttpResponse("Internal error", status=500)
+
+
+@login_required
+def manual_sync(request: HttpRequest, account_id: int) -> HttpResponse:
+    """Manually trigger sync for a specific account"""
+    from apps.calendars.services.sync_engine import sync_all_calendars
+    from apps.calendars.models import CalendarAccount
+    
+    try:
+        # Verify user owns this account
+        account = CalendarAccount.objects.get(id=account_id, user=request.user)
+        
+        # Run sync for all calendars of this user (includes this account)
+        results = sync_all_calendars(verbose=True)
+        
+        if results["errors"]:
+            messages.warning(
+                request,
+                f"Sync completed with {len(results['errors'])} errors. Check the sync logs for details."
+            )
+        else:
+            messages.success(
+                request,
+                f"Successfully synced {results['calendars_processed']} calendars. "
+                f"Created {results['events_created']} events, "
+                f"updated {results['events_updated']} events, "
+                f"created {results['busy_blocks_created']} busy blocks."
+            )
+        
+        return redirect("dashboard:account_detail", account_id=account_id)
+        
+    except CalendarAccount.DoesNotExist:
+        messages.error(request, "Account not found or access denied.")
+        return redirect("dashboard:index")
+    except Exception as e:
+        logger.error(f"Manual sync failed for account {account_id}: {e}")
+        messages.error(request, "Sync failed. Please try again or check the logs.")
+        return redirect("dashboard:account_detail", account_id=account_id)

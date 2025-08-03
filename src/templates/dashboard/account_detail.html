@@ -167,14 +167,16 @@
     <h3 id="account-actions-heading">Account Actions</h3>
     <div class="actions-container">
         {% if account.is_active %}
-            <button type="button" class="btn" disabled aria-describedby="manual-sync-help">Run Manual Sync</button>
-            <span id="manual-sync-help" class="sr-only">Manual sync functionality coming soon</span>
+            <a href="{% url 'dashboard:manual_sync' account.id %}" class="btn btn-success" aria-describedby="manual-sync-help">Run Manual Sync</a>
+            <span id="manual-sync-help" class="sr-only">Manually trigger calendar synchronization for this account</span>
             
             <a href="{% url 'dashboard:refresh_calendars' account.id %}" class="btn" aria-describedby="refresh-help">Refresh Calendars</a>
             <span id="refresh-help" class="sr-only">Update calendar list from Google</span>
             
-            <button type="button" class="btn btn-danger" disabled aria-describedby="disconnect-help">Disconnect Account</button>
-            <span id="disconnect-help" class="sr-only">Account disconnection functionality coming soon</span>
+            <a href="{% url 'accounts:disconnect_account' account.id %}" class="btn btn-danger" 
+               onclick="return confirm('Are you sure you want to disconnect this account? This will remove all calendars and sync data.')" 
+               aria-describedby="disconnect-help">Disconnect Account</a>
+            <span id="disconnect-help" class="sr-only">Permanently disconnect and remove this Google Calendar account</span>
         {% else %}
             <button type="button" class="btn btn-success" disabled aria-describedby="reactivate-help">Reactivate Account</button>
             <span id="reactivate-help" class="sr-only">Account reactivation functionality coming soon</span>
