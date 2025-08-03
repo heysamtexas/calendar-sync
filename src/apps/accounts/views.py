@@ -122,23 +122,32 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             user_profile = oauth2_service.userinfo().get().execute()
             user_email = user_profile.get("email", "Unknown")
             
+            logger.info(f"DEBUG: OAuth2 user profile: {user_profile}")
+            logger.info(f"DEBUG: Extracted email: {user_email}")
+            
             # Fallback: try to get primary calendar email if OAuth2 API fails
             if user_email == "Unknown":
                 calendar_service = build("calendar", "v3", credentials=credentials)
                 calendars_result = calendar_service.calendarList().list().execute()
                 calendars = calendars_result.get("items", [])
                 
+                logger.info(f"DEBUG: Fallback - found {len(calendars)} calendars")
+                
                 # Find the primary calendar
                 for calendar in calendars:
+                    logger.info(f"DEBUG: Calendar - id: {calendar.get('id')}, primary: {calendar.get('primary')}, summary: {calendar.get('summary')}")
                     if calendar.get("primary", False):
                         user_email = calendar.get("id", "Unknown")  # Calendar ID is usually the email
+                        logger.info(f"DEBUG: Using primary calendar email: {user_email}")
                         break
                 
                 # Final fallback: use first calendar ID
                 if user_email == "Unknown" and calendars:
                     user_email = calendars[0].get("id", "Unknown")
+                    logger.info(f"DEBUG: Using first calendar email: {user_email}")
             
             user_info = {"email": user_email}
+            logger.info(f"DEBUG: Final user_info: {user_info}")
             
         except Exception as e:
             logger.warning(f"Failed to get user email: {e}")
