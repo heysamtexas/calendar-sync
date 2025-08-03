@@ -96,7 +96,9 @@ class Command(BaseCommand):
 
             if success:
                 self.stdout.write(
-                    self.style.SUCCESS(f"Successfully refreshed tokens for {account.email}")
+                    self.style.SUCCESS(
+                        f"Successfully refreshed tokens for {account.email}"
+                    )
                 )
             else:
                 self.stdout.write(
@@ -149,11 +151,15 @@ class Command(BaseCommand):
 
             self.stdout.write("Validation complete:")
             self.stdout.write(f"  Total accounts: {results['total_accounts']}")
-            self.stdout.write(f"  Successful refreshes: {results['successful_refreshes']}")
+            self.stdout.write(
+                f"  Successful refreshes: {results['successful_refreshes']}"
+            )
 
             if results["failed_refreshes"] > 0:
                 self.stdout.write(
-                    self.style.WARNING(f"  Failed refreshes: {results['failed_refreshes']}")
+                    self.style.WARNING(
+                        f"  Failed refreshes: {results['failed_refreshes']}"
+                    )
                 )
 
                 if results["deactivated_accounts"]:

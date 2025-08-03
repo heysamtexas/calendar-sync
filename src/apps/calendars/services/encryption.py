@@ -18,7 +18,6 @@ class CredentialsError(Exception):
     """Exception raised for credential-related errors"""
 
 
-
 class TokenEncryption:
     """Handles secure encryption/decryption of OAuth tokens"""
 

@@ -194,7 +194,9 @@ class TokenManagerTest(TestCase):
 
     @patch("apps.calendars.services.token_manager.time.sleep")
     @patch("apps.calendars.services.token_manager.Request")
-    def test_refresh_token_with_retry_permanent_error(self, mock_request_class, mock_sleep):
+    def test_refresh_token_with_retry_permanent_error(
+        self, mock_request_class, mock_sleep
+    ):
         """Test refresh with permanent error (invalid_grant)"""
         mock_request = MagicMock()
         mock_request_class.return_value = mock_request
@@ -212,7 +214,9 @@ class TokenManagerTest(TestCase):
 
     @patch("apps.calendars.services.token_manager.time.sleep")
     @patch("apps.calendars.services.token_manager.Request")
-    def test_refresh_token_with_retry_temporary_error(self, mock_request_class, mock_sleep):
+    def test_refresh_token_with_retry_temporary_error(
+        self, mock_request_class, mock_sleep
+    ):
         """Test refresh with temporary error and retry"""
         mock_request = MagicMock()
         mock_request_class.return_value = mock_request
@@ -223,7 +227,7 @@ class TokenManagerTest(TestCase):
         mock_credentials.refresh.side_effect = [
             RefreshError("temporary_error"),
             RefreshError("temporary_error"),
-            None  # Success on third attempt
+            None,  # Success on third attempt
         ]
         mock_credentials.token = "new_access_token"
         mock_credentials.expiry = timezone.now() + timedelta(hours=1)
@@ -248,7 +252,9 @@ class TokenManagerTest(TestCase):
 
     @patch.object(TokenManager, "should_refresh_token")
     @patch.object(TokenManager, "get_valid_credentials")
-    def test_validate_all_accounts_mixed_results(self, mock_get_creds, mock_should_refresh):
+    def test_validate_all_accounts_mixed_results(
+        self, mock_get_creds, mock_should_refresh
+    ):
         """Test validate_all_accounts with mixed success/failure"""
         # Create second account
         user2 = User.objects.create_user(username="user2", email="user2@test.com")
@@ -327,11 +333,15 @@ class TokenManagerTest(TestCase):
 
     def test_revoke_token_success(self):
         """Test successful token revocation"""
-        with patch("apps.calendars.services.token_manager.Request") as mock_request_class:
+        with patch(
+            "apps.calendars.services.token_manager.Request"
+        ) as mock_request_class:
             mock_request = MagicMock()
             mock_request_class.return_value = mock_request
 
-            with patch("apps.calendars.services.token_manager.Credentials") as mock_creds_class:
+            with patch(
+                "apps.calendars.services.token_manager.Credentials"
+            ) as mock_creds_class:
                 mock_credentials = MagicMock()
                 mock_creds_class.return_value = mock_credentials
 
@@ -358,11 +368,15 @@ class TokenManagerTest(TestCase):
 
     def test_revoke_token_failure(self):
         """Test token revocation failure"""
-        with patch("apps.calendars.services.token_manager.Request") as mock_request_class:
+        with patch(
+            "apps.calendars.services.token_manager.Request"
+        ) as mock_request_class:
             mock_request = MagicMock()
             mock_request_class.return_value = mock_request
 
-            with patch("apps.calendars.services.token_manager.Credentials") as mock_creds_class:
+            with patch(
+                "apps.calendars.services.token_manager.Credentials"
+            ) as mock_creds_class:
                 mock_credentials = MagicMock()
                 mock_credentials.revoke.side_effect = Exception("Revocation failed")
                 mock_creds_class.return_value = mock_credentials

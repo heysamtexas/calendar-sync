@@ -59,13 +59,11 @@ def oauth_initiate(request: HttpRequest) -> HttpResponse:
         return redirect(authorization_url)
 
     except Exception as e:
-        logger.error(
-            f"OAuth initiation failed for user {request.user.username}: {e!s}"
-        )
+        logger.error(f"OAuth initiation failed for user {request.user.username}: {e!s}")
         messages.error(
             request,
             "Unable to connect to Google Calendar. Please check your internet connection and try again. "
-            "If the problem persists, verify your Google OAuth credentials in the .env file."
+            "If the problem persists, verify your Google OAuth credentials in the .env file.",
         )
         return redirect("dashboard")
 
@@ -82,7 +80,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             logger.warning(f"OAuth state mismatch for user {request.user.username}")
             messages.error(
                 request,
-                "Authentication failed due to a security verification error. Please try connecting your calendar again."
+                "Authentication failed due to a security verification error. Please try connecting your calendar again.",
             )
             # Clean up invalid state
             request.session.pop("oauth_state", None)
@@ -95,7 +93,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             messages.error(
                 request,
                 f"Google Calendar authentication was denied or failed: {error}. "
-                "Please ensure you grant calendar permissions and try again."
+                "Please ensure you grant calendar permissions and try again.",
             )
             # Clean up session on error
             request.session.pop("oauth_state", None)
@@ -121,7 +119,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             messages.error(
                 request,
                 "No calendars were found in your Google account. Please ensure you have at least one calendar "
-                "and that this application has permission to access your Google Calendar."
+                "and that this application has permission to access your Google Calendar.",
             )
             return redirect("dashboard")
 
@@ -175,9 +173,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         return redirect("dashboard")
 
     except Exception as e:
-        logger.error(
-            f"OAuth callback failed for user {request.user.username}: {e!s}"
-        )
+        logger.error(f"OAuth callback failed for user {request.user.username}: {e!s}")
         messages.error(
             request,
             "Failed to complete Google Calendar authentication. This could be due to a network issue "
@@ -208,7 +204,7 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
         )
         messages.error(
             request,
-            "The calendar account you're trying to disconnect was not found. It may have already been removed."
+            "The calendar account you're trying to disconnect was not found. It may have already been removed.",
         )
 
     except Exception as e:
@@ -218,7 +214,7 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
         messages.error(
             request,
             "Failed to disconnect the calendar account. Please refresh the page and try again. "
-            "If the problem persists, the account may need to be disconnected from your Google account settings."
+            "If the problem persists, the account may need to be disconnected from your Google account settings.",
         )
 
     return redirect("dashboard")

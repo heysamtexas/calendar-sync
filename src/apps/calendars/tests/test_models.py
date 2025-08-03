@@ -553,9 +553,7 @@ class SyncLogModelTest(TestCase):
     def test_str_representation(self):
         """Test string representation of SyncLog"""
         sync_log = SyncLog.objects.create(
-            calendar_account=self.account,
-            sync_type="full",
-            status="success"
+            calendar_account=self.account, sync_type="full", status="success"
         )
 
         # The actual __str__ method uses lowercase sync_type and status
@@ -565,8 +563,7 @@ class SyncLogModelTest(TestCase):
     def test_duration_calculation(self):
         """Test duration calculation for incomplete sync"""
         sync_log = SyncLog.objects.create(
-            calendar_account=self.account,
-            sync_type="incremental"
+            calendar_account=self.account, sync_type="incremental"
         )
 
         # Duration should be None when not completed
@@ -585,8 +582,7 @@ class SyncLogModelTest(TestCase):
         for status in valid_statuses:
             # Create new log for each test
             test_log = SyncLog.objects.create(
-                calendar_account=self.account,
-                sync_type="manual"
+                calendar_account=self.account, sync_type="manual"
             )
             test_log.mark_completed(status=status)
             self.assertEqual(test_log.status, status)
@@ -597,15 +593,13 @@ class SyncLogModelTest(TestCase):
         """Test that sync logs are ordered by started_at descending"""
         # Create logs with different start times
         old_log = SyncLog.objects.create(
-            calendar_account=self.account,
-            sync_type="full"
+            calendar_account=self.account, sync_type="full"
         )
         old_log.started_at = timezone.now() - timedelta(hours=2)
         old_log.save()
 
         new_log = SyncLog.objects.create(
-            calendar_account=self.account,
-            sync_type="incremental"
+            calendar_account=self.account, sync_type="incremental"
         )
 
         # Query should return newest first

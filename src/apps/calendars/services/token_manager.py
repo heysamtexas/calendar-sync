@@ -38,7 +38,9 @@ class TokenManager:
     def get_valid_credentials(account: CalendarAccount) -> Credentials | None:
         """Get valid credentials for a calendar account, refreshing if needed"""
         if not account.is_active:
-            logger.warning(f"Account {account.email} is inactive, skipping credential validation")
+            logger.warning(
+                f"Account {account.email} is inactive, skipping credential validation"
+            )
             return None
 
         try:
@@ -63,12 +65,16 @@ class TokenManager:
             return credentials
 
         except Exception as e:
-            logger.error(f"Failed to create credentials for account {account.email}: {e!s}")
+            logger.error(
+                f"Failed to create credentials for account {account.email}: {e!s}"
+            )
             return None
 
     @staticmethod
     @transaction.atomic
-    def _refresh_token_with_retry(account: CalendarAccount, credentials: Credentials) -> Credentials | None:
+    def _refresh_token_with_retry(
+        account: CalendarAccount, credentials: Credentials
+    ) -> Credentials | None:
         """Refresh token with retry logic and exponential backoff"""
         if not credentials.refresh_token:
             logger.error(f"No refresh token available for account {account.email}")
@@ -79,13 +85,15 @@ class TokenManager:
 
         for attempt in range(TokenConstants.MAX_RETRY_ATTEMPTS):
             try:
-                logger.info(f"Token refresh attempt {attempt + 1} for account {account.email}")
+                logger.info(
+                    f"Token refresh attempt {attempt + 1} for account {account.email}"
+                )
 
                 # Calculate delay for exponential backoff
                 if attempt > 0:
                     delay = min(
                         TokenConstants.BASE_RETRY_DELAY * (2 ** (attempt - 1)),
-                        TokenConstants.MAX_RETRY_DELAY
+                        TokenConstants.MAX_RETRY_DELAY,
                     )
                     logger.info(f"Waiting {delay} seconds before retry...")
                     time.sleep(delay)
@@ -105,16 +113,22 @@ class TokenManager:
 
             except RefreshError as e:
                 last_exception = e
-                logger.warning(f"Token refresh attempt {attempt + 1} failed for account {account.email}: {e}")
+                logger.warning(
+                    f"Token refresh attempt {attempt + 1} failed for account {account.email}: {e}"
+                )
 
                 # If this is a permanent error, don't retry
                 if "invalid_grant" in str(e) or "unauthorized_client" in str(e):
-                    logger.error(f"Permanent token refresh error for account {account.email}: {e}")
+                    logger.error(
+                        f"Permanent token refresh error for account {account.email}: {e}"
+                    )
                     break
 
             except Exception as e:
                 last_exception = e
-                logger.warning(f"Unexpected error during token refresh attempt {attempt + 1} for account {account.email}: {e}")
+                logger.warning(
+                    f"Unexpected error during token refresh attempt {attempt + 1} for account {account.email}: {e}"
+                )
 
         # All retry attempts failed
         error_msg = f"Token refresh failed after {TokenConstants.MAX_RETRY_ATTEMPTS} attempts: {last_exception}"
@@ -125,7 +139,9 @@ class TokenManager:
     @staticmethod
     def _handle_refresh_failure(account: CalendarAccount, error_message: str):
         """Handle token refresh failure with proper cleanup and notifications"""
-        logger.error(f"Handling refresh failure for account {account.email}: {error_message}")
+        logger.error(
+            f"Handling refresh failure for account {account.email}: {error_message}"
+        )
 
         # Deactivate account to prevent further API calls
         account.is_active = False
@@ -134,7 +150,9 @@ class TokenManager:
         # TODO: Add user notification system
         # This would integrate with Django messages or email notifications
         if TokenConstants.NOTIFY_ON_ACCOUNT_DEACTIVATION:
-            logger.info(f"Account {account.email} deactivated due to token refresh failure")
+            logger.info(
+                f"Account {account.email} deactivated due to token refresh failure"
+            )
             # Future enhancement: Send notification to user
 
     @staticmethod
@@ -144,7 +162,9 @@ class TokenManager:
             return False
 
         if TokenManager.should_refresh_token(account):
-            logger.info(f"Performing proactive token refresh for account {account.email}")
+            logger.info(
+                f"Performing proactive token refresh for account {account.email}"
+            )
             credentials = TokenManager.get_valid_credentials(account)
             return credentials is not None
 
@@ -159,10 +179,12 @@ class TokenManager:
             "successful_refreshes": 0,
             "failed_refreshes": 0,
             "deactivated_accounts": [],
-            "errors": []
+            "errors": [],
         }
 
-        logger.info(f"Starting token validation for {results['total_accounts']} active accounts")
+        logger.info(
+            f"Starting token validation for {results['total_accounts']} active accounts"
+        )
 
         for account in active_accounts:
             try:
@@ -174,11 +196,15 @@ class TokenManager:
 
                     if credentials:
                         results["successful_refreshes"] += 1
-                        logger.info(f"Successfully validated/refreshed credentials for account {account.email}")
+                        logger.info(
+                            f"Successfully validated/refreshed credentials for account {account.email}"
+                        )
                     else:
                         results["failed_refreshes"] += 1
                         results["deactivated_accounts"].append(account.email)
-                        logger.warning(f"Failed to validate credentials for account {account.email}")
+                        logger.warning(
+                            f"Failed to validate credentials for account {account.email}"
+                        )
                 else:
                     logger.info(f"Token for account {account.email} is still valid")
 
@@ -188,7 +214,9 @@ class TokenManager:
                 results["errors"].append(error_msg)
                 results["failed_refreshes"] += 1
 
-        logger.info(f"Token validation complete: {results['successful_refreshes']} successful, {results['failed_refreshes']} failed")
+        logger.info(
+            f"Token validation complete: {results['successful_refreshes']} successful, {results['failed_refreshes']} failed"
+        )
         return results
 
     @staticmethod
@@ -201,8 +229,7 @@ class TokenManager:
         cutoff_time = timezone.now() + buffer_time
 
         accounts_needing_refresh = CalendarAccount.objects.filter(
-            is_active=True,
-            token_expires_at__lte=cutoff_time
+            is_active=True, token_expires_at__lte=cutoff_time
         )
 
         refresh_count = 0
@@ -211,14 +238,22 @@ class TokenManager:
                 logger.info(f"Background refresh for account {account.email}")
                 if TokenManager.proactive_refresh_check(account):
                     refresh_count += 1
-                    logger.info(f"Successfully refreshed token for account {account.email}")
+                    logger.info(
+                        f"Successfully refreshed token for account {account.email}"
+                    )
                 else:
-                    logger.warning(f"Background refresh failed for account {account.email}")
+                    logger.warning(
+                        f"Background refresh failed for account {account.email}"
+                    )
 
             except Exception as e:
-                logger.error(f"Error during background refresh for account {account.email}: {e}")
+                logger.error(
+                    f"Error during background refresh for account {account.email}: {e}"
+                )
 
-        logger.info(f"Background token refresh complete: {refresh_count} tokens refreshed")
+        logger.info(
+            f"Background token refresh complete: {refresh_count} tokens refreshed"
+        )
         return refresh_count
 
     @staticmethod
@@ -281,5 +316,7 @@ class TokenManager:
             "inactive_accounts": all_accounts.filter(is_active=False).count(),
             "tokens_expiring_soon": tokens_expiring_soon.count(),
             "expired_tokens": expired_tokens.count(),
-            "healthy_tokens": active_accounts.filter(token_expires_at__gt=cutoff_time).count()
+            "healthy_tokens": active_accounts.filter(
+                token_expires_at__gt=cutoff_time
+            ).count(),
         }
