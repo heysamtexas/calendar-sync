@@ -22,7 +22,8 @@ echo "Environment validated for AI agent development"
 **CRITICAL CONSTRAINTS - DO NOT IGNORE:**
 - **NEVER** execute `rm -rf` or destructive commands without explicit user confirmation
 - **ALWAYS** run tests before committing: `uv run python manage.py test`
-- **MANDATORY** follow test-driven development: Write tests first, then implement
+- **MANDATORY** commit frequently to checkpoint work: After each task, feature, or fix
+- **REQUIRED** follow test-driven development: Write tests first, then implement
 - **REQUIRED** maintain ≥75% test coverage for all new code
 - **ESSENTIAL** validate every command with success/failure checking
 
@@ -122,6 +123,7 @@ Start with the AI agent validation sequence above, then follow the task implemen
 
 ### Code Quality and Best Practices
 - Remember to run ruff linting and formatting early and often
+- **MANDATORY**: Commit frequently to checkpoint work - no exceptions
 - Comprehensive ruff configuration in pyproject.toml includes:
   - Django-specific rules (DJ)
   - Security checks (S - bandit)
@@ -131,3 +133,31 @@ Start with the AI agent validation sequence above, then follow the task implemen
 - Run `uv run ruff check .` for linting
 - Run `uv run ruff format .` for code formatting  
 - Run `uv run ruff check --fix .` to auto-fix issues
+
+### Git Workflow - CRITICAL
+**MANDATORY commit frequency:**
+- After completing each TASK (e.g., TASK-014, TASK-015)
+- After adding new features or services
+- After fixing bugs or resolving issues
+- Before major refactoring (safety checkpoint)
+- When all tests pass (clean state commits)
+- After security enhancements or fixes
+
+**Commit message format:**
+```
+Short description (what was done)
+
+- Detailed change 1
+- Detailed change 2
+- Test status and coverage info
+
+🤖 Generated with Claude Code
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+**Pre-commit checklist:**
+1. Run tests: `cd src && uv run python manage.py test`
+2. Check code quality: `uv run ruff check . && uv run ruff format .`
+3. Verify working tree is clean: `git status`
+4. Write descriptive commit message
+5. Commit and continue development

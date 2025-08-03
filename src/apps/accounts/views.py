@@ -63,7 +63,7 @@ def oauth_initiate(request: HttpRequest) -> HttpResponse:
             f"OAuth initiation failed for user {request.user.username}: {e!s}"
         )
         messages.error(
-            request, 
+            request,
             "Unable to connect to Google Calendar. Please check your internet connection and try again. "
             "If the problem persists, verify your Google OAuth credentials in the .env file."
         )
@@ -81,7 +81,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         if not stored_state or stored_state != received_state:
             logger.warning(f"OAuth state mismatch for user {request.user.username}")
             messages.error(
-                request, 
+                request,
                 "Authentication failed due to a security verification error. Please try connecting your calendar again."
             )
             # Clean up invalid state
@@ -93,7 +93,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             error = request.GET.get("error")
             logger.warning(f"OAuth error for user {request.user.username}: {error}")
             messages.error(
-                request, 
+                request,
                 f"Google Calendar authentication was denied or failed: {error}. "
                 "Please ensure you grant calendar permissions and try again."
             )
@@ -119,7 +119,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         if not calendars:
             logger.error(f"No calendars found for user {request.user.username}")
             messages.error(
-                request, 
+                request,
                 "No calendars were found in your Google account. Please ensure you have at least one calendar "
                 "and that this application has permission to access your Google Calendar."
             )
@@ -207,7 +207,7 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
             f"Attempted to disconnect non-existent account {account_id} for user {request.user.username}"
         )
         messages.error(
-            request, 
+            request,
             "The calendar account you're trying to disconnect was not found. It may have already been removed."
         )
 
@@ -216,7 +216,7 @@ def disconnect_account(request: HttpRequest, account_id: int) -> HttpResponse:
             f"Failed to disconnect account {account_id} for user {request.user.username}: {e!s}"
         )
         messages.error(
-            request, 
+            request,
             "Failed to disconnect the calendar account. Please refresh the page and try again. "
             "If the problem persists, the account may need to be disconnected from your Google account settings."
         )
