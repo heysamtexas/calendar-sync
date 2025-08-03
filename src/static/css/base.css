@@ -368,6 +368,75 @@ footer {
     }
 }
 
+/* Calendar Color Badge */
+.calendar-color-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    color: white;
+    font-size: 0.75rem;
+    display: inline-block;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    min-width: 60px;
+    text-align: center;
+}
+
+/* Use CSS custom properties for dynamic colors */
+.calendar-color-badge[data-color] {
+    background-color: var(--calendar-color, #6c757d);
+}
+
+/* Login Form Styles */
+.login-help-text {
+    margin-top: 1rem;
+    color: #6c757d;
+    text-align: center;
+}
+
+/* Form Labels Accessibility */
+label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    color: #333;
+}
+
+/* Form Field Accessibility */
+input:focus, textarea:focus, select:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+    border-color: #007bff;
+}
+
+/* Error Message Accessibility */
+.message.error {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+}
+
+/* Actions Container */
+.actions-container {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.actions-container .btn {
+    margin: 0;
+}
+
+/* Disabled button styles */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background-color: #6c757d;
+}
+
+.btn:disabled:hover {
+    background-color: #6c757d;
+    transform: none;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
     header .container {

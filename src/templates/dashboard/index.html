@@ -9,9 +9,9 @@
 </div>
 
 <!-- Quick Stats -->
-<div class="card">
-    <h3>Quick Stats</h3>
-    <table>
+<div class="card" role="region" aria-labelledby="stats-heading">
+    <h3 id="stats-heading">Quick Stats</h3>
+    <table role="table" aria-label="Calendar synchronization statistics">
         <tr>
             <td><strong>Connected Accounts:</strong></td>
             <td>{{ calendar_accounts.count }}</td>
@@ -38,10 +38,10 @@
 </div>
 
 <!-- Connected Accounts -->
-<div class="card">
-    <h3>Connected Accounts</h3>
+<div class="card" role="region" aria-labelledby="accounts-heading">
+    <h3 id="accounts-heading">Connected Accounts</h3>
     {% if calendar_accounts %}
-        <table>
+        <table role="table" aria-label="Connected Google Calendar accounts">
             <thead>
                 <tr>
                     <th>Email</th>
@@ -71,7 +71,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="{% url 'dashboard:account_detail' account.id %}" class="btn">View Details</a>
+                        <a href="{% url 'dashboard:account_detail' account.id %}" class="btn" aria-label="View details for {{ account.email }}">View Details</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -85,9 +85,9 @@
 
 <!-- Recent Sync Activity -->
 {% if recent_syncs %}
-<div class="card">
-    <h3>Recent Sync Activity</h3>
-    <table>
+<div class="card" role="region" aria-labelledby="sync-activity-heading">
+    <h3 id="sync-activity-heading">Recent Sync Activity</h3>
+    <table role="table" aria-label="Recent calendar synchronization activity">
         <thead>
             <tr>
                 <th>Account</th>
@@ -133,11 +133,15 @@
 {% endif %}
 
 <!-- Actions -->
-<div class="card">
-    <h3>Actions</h3>
-    <a href="{% url 'accounts:connect' %}" class="btn btn-success">Connect New Account</a>
-    {% if calendar_accounts %}
-        <a href="#" class="btn">Run Manual Sync</a>
-    {% endif %}
+<div class="card" role="region" aria-labelledby="actions-heading">
+    <h3 id="actions-heading">Available Actions</h3>
+    <div class="actions-container">
+        <a href="{% url 'accounts:connect' %}" class="btn btn-success" aria-describedby="connect-help">Connect New Account</a>
+        <span id="connect-help" class="sr-only">Add a new Google Calendar account to sync</span>
+        {% if calendar_accounts %}
+            <button type="button" class="btn" disabled aria-describedby="sync-help">Run Manual Sync</button>
+            <span id="sync-help" class="sr-only">Manual sync functionality coming soon</span>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

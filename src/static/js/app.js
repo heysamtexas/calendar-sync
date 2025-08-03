@@ -1,6 +1,14 @@
 // HTMX Configuration and Event Handlers
 document.addEventListener('DOMContentLoaded', function() {
     
+    // Set dynamic calendar colors using CSS custom properties
+    document.querySelectorAll('.calendar-color-badge[data-color]').forEach(function(badge) {
+        const color = badge.getAttribute('data-color');
+        if (color) {
+            badge.style.setProperty('--calendar-color', color);
+        }
+    });
+    
     // Configure HTMX CSRF protection
     document.body.addEventListener('htmx:configRequest', function(evt) {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');

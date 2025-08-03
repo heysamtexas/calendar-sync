@@ -10,9 +10,9 @@
 </div>
 
 <!-- Account Information -->
-<div class="card">
-    <h3>Account Information</h3>
-    <table>
+<div class="card" role="region" aria-labelledby="account-info-heading">
+    <h3 id="account-info-heading">Account Information</h3>
+    <table role="table" aria-label="Google Calendar account details">
         <tr>
             <td><strong>Email:</strong></td>
             <td>{{ account.email }}</td>
@@ -55,10 +55,10 @@
 </div>
 
 <!-- Calendars -->
-<div class="card">
-    <h3>Calendars ({{ calendars.count }})</h3>
+<div class="card" role="region" aria-labelledby="calendars-heading">
+    <h3 id="calendars-heading">Calendars ({{ calendars.count }})</h3>
     {% if calendars %}
-        <table>
+        <table role="table" aria-label="Calendar synchronization settings">
             <thead>
                 <tr>
                     <th>Name</th>
@@ -85,7 +85,7 @@
                     </td>
                     <td>
                         {% if calendar.color %}
-                            <span style="background-color: {{ calendar.color }}; padding: 0.25rem 0.5rem; border-radius: 3px; color: white; font-size: 0.75rem;">{{ calendar.color }}</span>
+                            <span class="calendar-color-badge" data-color="{{ calendar.color }}" aria-label="Calendar color: {{ calendar.color }}">{{ calendar.color }}</span>
                         {% else %}
                             -
                         {% endif %}
@@ -101,9 +101,9 @@
 
 <!-- Sync History -->
 {% if sync_logs %}
-<div class="card">
-    <h3>Sync History (Last 20)</h3>
-    <table>
+<div class="card" role="region" aria-labelledby="sync-history-heading">
+    <h3 id="sync-history-heading">Sync History (Last 20)</h3>
+    <table role="table" aria-label="Calendar synchronization history and logs">
         <thead>
             <tr>
                 <th>Started</th>
@@ -163,15 +163,25 @@
 {% endif %}
 
 <!-- Actions -->
-<div class="card">
-    <h3>Actions</h3>
-    {% if account.is_active %}
-        <a href="#" class="btn">Run Manual Sync</a>
-        <a href="{% url 'dashboard:refresh_calendars' account.id %}" class="btn">Refresh Calendars</a>
-        <a href="#" class="btn btn-danger">Disconnect Account</a>
-    {% else %}
-        <a href="#" class="btn btn-success">Reactivate Account</a>
-        <a href="#" class="btn btn-danger">Remove Account</a>
-    {% endif %}
+<div class="card" role="region" aria-labelledby="account-actions-heading">
+    <h3 id="account-actions-heading">Account Actions</h3>
+    <div class="actions-container">
+        {% if account.is_active %}
+            <button type="button" class="btn" disabled aria-describedby="manual-sync-help">Run Manual Sync</button>
+            <span id="manual-sync-help" class="sr-only">Manual sync functionality coming soon</span>
+            
+            <a href="{% url 'dashboard:refresh_calendars' account.id %}" class="btn" aria-describedby="refresh-help">Refresh Calendars</a>
+            <span id="refresh-help" class="sr-only">Update calendar list from Google</span>
+            
+            <button type="button" class="btn btn-danger" disabled aria-describedby="disconnect-help">Disconnect Account</button>
+            <span id="disconnect-help" class="sr-only">Account disconnection functionality coming soon</span>
+        {% else %}
+            <button type="button" class="btn btn-success" disabled aria-describedby="reactivate-help">Reactivate Account</button>
+            <span id="reactivate-help" class="sr-only">Account reactivation functionality coming soon</span>
+            
+            <button type="button" class="btn btn-danger" disabled aria-describedby="remove-help">Remove Account</button>
+            <span id="remove-help" class="sr-only">Account removal functionality coming soon</span>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
