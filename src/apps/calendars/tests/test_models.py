@@ -98,6 +98,57 @@ class CalendarAccountModelTest(TestCase):
                 token_expires_at=timezone.now() + timedelta(hours=1),
             )
 
+    def test_str_representation(self):
+        """Test string representation of CalendarAccount"""
+        account = CalendarAccount.objects.create(
+            user=self.user,
+            google_account_id="google123",
+            email="calendar@gmail.com",
+            access_token="token",
+            refresh_token="refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        expected = f"calendar@gmail.com ({self.user.username})"
+        self.assertEqual(str(account), expected)
+
+    def test_token_decryption_error_handling(self):
+        """Test handling of token decryption errors"""
+        account = CalendarAccount.objects.create(
+            user=self.user,
+            google_account_id="google123",
+            email="calendar@gmail.com",
+            access_token="invalid_encrypted_data",
+            refresh_token="invalid_encrypted_data",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # These should handle decryption errors gracefully
+        access_token = account.get_access_token()
+        refresh_token = account.get_refresh_token()
+
+        # Should return empty string on decryption failure
+        self.assertEqual(access_token, "")
+        self.assertEqual(refresh_token, "")
+
+    def test_empty_token_handling(self):
+        """Test handling of empty tokens"""
+        account = CalendarAccount.objects.create(
+            user=self.user,
+            google_account_id="google123",
+            email="calendar@gmail.com",
+            access_token="",
+            refresh_token="",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Setting empty tokens should work
+        account.set_access_token("")
+        account.set_refresh_token("")
+        account.save()
+
+        self.assertEqual(account.get_access_token(), "")
+        self.assertEqual(account.get_refresh_token(), "")
+
 
 class CalendarModelTest(TestCase):
     def setUp(self):
@@ -175,6 +226,35 @@ class CalendarModelTest(TestCase):
                 google_calendar_id="cal123",
                 name="Calendar 2",
             )
+
+    def test_str_representation(self):
+        """Test string representation of Calendar"""
+        calendar = Calendar.objects.create(
+            calendar_account=self.account,
+            google_calendar_id="cal123",
+            name="Work Calendar",
+        )
+        expected = f"Work Calendar ({self.account.email})"
+        self.assertEqual(str(calendar), expected)
+
+    def test_last_synced_property(self):
+        """Test last_synced_at time tracking"""
+        calendar = Calendar.objects.create(
+            calendar_account=self.account,
+            google_calendar_id="cal123",
+            name="Work Calendar",
+        )
+
+        # Initially should be None
+        self.assertIsNone(calendar.last_synced_at)
+
+        # Update last synced time
+        now = timezone.now()
+        calendar.last_synced_at = now
+        calendar.save()
+
+        calendar.refresh_from_db()
+        self.assertEqual(calendar.last_synced_at, now)
 
 
 class EventModelTest(TestCase):
@@ -286,6 +366,93 @@ class EventModelTest(TestCase):
         self.assertTrue(Event.is_system_busy_block("Meeting CalSync [source:123:456]"))
         self.assertFalse(Event.is_system_busy_block("Regular Meeting"))
 
+    def test_str_representation(self):
+        """Test string representation of Event"""
+        start_time = timezone.now()
+        end_time = start_time + timedelta(hours=1)
+
+        event = Event.objects.create(
+            calendar=self.calendar,
+            google_event_id="event123",
+            title="Team Meeting",
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        # The actual __str__ method includes the full start_time and no busy block indicator
+        expected = f"Team Meeting ({start_time})"
+        self.assertEqual(str(event), expected)
+
+    def test_event_validation_edge_cases(self):
+        """Test event validation edge cases"""
+        start_time = timezone.now()
+
+        # Empty title validation
+        with self.assertRaises(ValidationError):
+            event = Event(
+                calendar=self.calendar,
+                google_event_id="event123",
+                title="   ",  # Empty whitespace
+                start_time=start_time,
+                end_time=start_time + timedelta(hours=1),
+            )
+            event.full_clean()
+
+    def test_busy_block_validation(self):
+        """Test busy block requires source event"""
+        start_time = timezone.now()
+        end_time = start_time + timedelta(hours=1)
+
+        with self.assertRaises(ValidationError):
+            event = Event(
+                calendar=self.calendar,
+                google_event_id="event123",
+                title="Busy Block",
+                start_time=start_time,
+                end_time=end_time,
+                is_busy_block=True,
+                # Missing source_event
+            )
+            event.full_clean()
+
+    def test_tag_generation_and_parsing(self):
+        """Test busy block tag generation and parsing"""
+        # Create source event
+        start_time = timezone.now()
+        end_time = start_time + timedelta(hours=1)
+
+        source_event = Event.objects.create(
+            calendar=self.calendar,
+            google_event_id="event123",
+            title="Team Meeting",
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        # For tag generation, the event needs source_event set
+        # The method generates tag based on source_event and calendar
+        # Since we haven't set source_event, it returns empty string
+        tag = source_event.generate_busy_block_tag()
+        self.assertEqual(tag, "")  # No source_event set
+
+        # Test with a busy block that has source event
+        target_calendar = Calendar.objects.create(
+            calendar_account=self.account,
+            google_calendar_id="cal456",
+            name="Personal Calendar",
+        )
+
+        busy_block = Event.create_busy_block(source_event, target_calendar)
+
+        # Now test tag generation on the busy block
+        tag = busy_block.generate_busy_block_tag()
+        self.assertIn("CalSync [source:", tag)
+        self.assertIn(str(target_calendar.id), tag)
+        self.assertIn(str(source_event.id), tag)
+
+        # Test is_system_busy_block method with generated tag
+        self.assertTrue(Event.is_system_busy_block(tag))
+
 
 class SyncLogModelTest(TestCase):
     def setUp(self):
@@ -382,3 +549,66 @@ class SyncLogModelTest(TestCase):
         self.assertEqual(deleted_count, 1)
         self.assertFalse(SyncLog.objects.filter(id=old_log.id).exists())
         self.assertTrue(SyncLog.objects.filter(id=recent_log.id).exists())
+
+    def test_str_representation(self):
+        """Test string representation of SyncLog"""
+        sync_log = SyncLog.objects.create(
+            calendar_account=self.account,
+            sync_type="full",
+            status="success"
+        )
+
+        # The actual __str__ method uses lowercase sync_type and status
+        expected = f"full sync for {self.account.email} - success"
+        self.assertEqual(str(sync_log), expected)
+
+    def test_duration_calculation(self):
+        """Test duration calculation for incomplete sync"""
+        sync_log = SyncLog.objects.create(
+            calendar_account=self.account,
+            sync_type="incremental"
+        )
+
+        # Duration should be None when not completed
+        self.assertIsNone(sync_log.duration)
+
+        # Mark as completed and test duration
+        sync_log.mark_completed("success")
+        duration = sync_log.duration
+        self.assertIsNotNone(duration)
+        self.assertGreater(duration, 0)
+
+    def test_mark_completed_validation(self):
+        """Test mark_completed with different status values"""
+        # Test all valid status values
+        valid_statuses = ["success", "error", "partial", "in_progress"]
+        for status in valid_statuses:
+            # Create new log for each test
+            test_log = SyncLog.objects.create(
+                calendar_account=self.account,
+                sync_type="manual"
+            )
+            test_log.mark_completed(status=status)
+            self.assertEqual(test_log.status, status)
+            if status != "in_progress":
+                self.assertIsNotNone(test_log.completed_at)
+
+    def test_sync_log_ordering(self):
+        """Test that sync logs are ordered by started_at descending"""
+        # Create logs with different start times
+        old_log = SyncLog.objects.create(
+            calendar_account=self.account,
+            sync_type="full"
+        )
+        old_log.started_at = timezone.now() - timedelta(hours=2)
+        old_log.save()
+
+        new_log = SyncLog.objects.create(
+            calendar_account=self.account,
+            sync_type="incremental"
+        )
+
+        # Query should return newest first
+        logs = list(SyncLog.objects.all())
+        self.assertEqual(logs[0], new_log)
+        self.assertEqual(logs[1], old_log)
