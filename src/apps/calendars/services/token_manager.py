@@ -1,322 +1,191 @@
-"""Token management service for Google OAuth tokens"""
+"""Simplified token management for single-user calendar sync application"""
 
-from datetime import timedelta
 import logging
 import time
+from datetime import timedelta
 
 from django.conf import settings
-from django.db import transaction
 from django.utils import timezone
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-from apps.calendars.constants import TokenConstants
 from apps.calendars.models import CalendarAccount
 
 
 logger = logging.getLogger(__name__)
 
 
-class TokenRefreshError(Exception):
-    """Exception raised when token refresh fails"""
-
-
 class TokenManager:
-    """Manages OAuth token refresh and validation with enhanced error handling"""
+    """Simple token management for single-user app - no enterprise complexity"""
 
-    @staticmethod
-    def should_refresh_token(account: CalendarAccount) -> bool:
-        """Check if token should be refreshed proactively"""
-        if not account.token_expires_at:
-            return True
+    def __init__(self, calendar_account: CalendarAccount):
+        self.account = calendar_account
 
-        buffer_time = timedelta(minutes=TokenConstants.REFRESH_BUFFER_MINUTES)
-        return timezone.now() + buffer_time >= account.token_expires_at
-
-    @staticmethod
-    def get_valid_credentials(account: CalendarAccount) -> Credentials | None:
-        """Get valid credentials for a calendar account, refreshing if needed"""
-        if not account.is_active:
-            logger.warning(
-                f"Account {account.email} is inactive, skipping credential validation"
-            )
+    def get_valid_credentials(self) -> Credentials | None:
+        """Get valid credentials, refreshing if needed"""
+        if not self.account.is_active:
+            logger.warning(f"Account {self.account.email} is inactive")
             return None
 
+        # Create credentials object
+        credentials = self._build_credentials()
+        if not credentials:
+            return None
+
+        # Check if refresh needed (5 minute buffer)
+        if self._needs_refresh():
+            logger.info(f"Refreshing token for {self.account.email}")
+            if not self._refresh_token_simple(credentials):
+                return None
+
+        return credentials
+
+    def _build_credentials(self) -> Credentials | None:
+        """Build credentials object from stored tokens"""
         try:
-            # Create credentials object
-            credentials = Credentials(
-                token=account.get_access_token(),
-                refresh_token=account.get_refresh_token(),
-                token_uri="https://oauth2.googleapis.com/token",
-                client_id=settings.GOOGLE_OAUTH_CLIENT_ID,
-                client_secret=settings.GOOGLE_OAUTH_CLIENT_SECRET,
-                scopes=["https://www.googleapis.com/auth/calendar"],
-            )
+            access_token = self.account.get_access_token()
+            refresh_token = self.account.get_refresh_token()
 
-            # Set expiry time
-            credentials.expiry = account.token_expires_at
-
-            # Check if token needs refresh (proactive refresh)
-            if TokenManager.should_refresh_token(account):
-                logger.info(f"Token for account {account.email} needs refresh")
-                return TokenManager._refresh_token_with_retry(account, credentials)
-
-            return credentials
-
-        except Exception as e:
-            logger.error(
-                f"Failed to create credentials for account {account.email}: {e!s}"
-            )
-            return None
-
-    @staticmethod
-    @transaction.atomic
-    def _refresh_token_with_retry(
-        account: CalendarAccount, credentials: Credentials
-    ) -> Credentials | None:
-        """Refresh token with retry logic and exponential backoff"""
-        if not credentials.refresh_token:
-            logger.error(f"No refresh token available for account {account.email}")
-            TokenManager._handle_refresh_failure(account, "No refresh token available")
-            return None
-
-        last_exception = None
-
-        for attempt in range(TokenConstants.MAX_RETRY_ATTEMPTS):
-            try:
-                logger.info(
-                    f"Token refresh attempt {attempt + 1} for account {account.email}"
-                )
-
-                # Calculate delay for exponential backoff
-                if attempt > 0:
-                    delay = min(
-                        TokenConstants.BASE_RETRY_DELAY * (2 ** (attempt - 1)),
-                        TokenConstants.MAX_RETRY_DELAY,
-                    )
-                    logger.info(f"Waiting {delay} seconds before retry...")
-                    time.sleep(delay)
-
-                # Attempt token refresh
-                request = Request()
-                credentials.refresh(request)
-
-                # Update stored tokens with thread safety
-                account.refresh_from_db()  # Get latest state
-                account.set_access_token(credentials.token)
-                account.token_expires_at = credentials.expiry
-                account.save()
-
-                logger.info(f"Successfully refreshed token for account {account.email}")
-                return credentials
-
-            except RefreshError as e:
-                last_exception = e
-                logger.warning(
-                    f"Token refresh attempt {attempt + 1} failed for account {account.email}: {e}"
-                )
-
-                # If this is a permanent error, don't retry
-                if "invalid_grant" in str(e) or "unauthorized_client" in str(e):
-                    logger.error(
-                        f"Permanent token refresh error for account {account.email}: {e}"
-                    )
-                    break
-
-            except Exception as e:
-                last_exception = e
-                logger.warning(
-                    f"Unexpected error during token refresh attempt {attempt + 1} for account {account.email}: {e}"
-                )
-
-        # All retry attempts failed
-        error_msg = f"Token refresh failed after {TokenConstants.MAX_RETRY_ATTEMPTS} attempts: {last_exception}"
-        logger.error(error_msg)
-        TokenManager._handle_refresh_failure(account, error_msg)
-        return None
-
-    @staticmethod
-    def _handle_refresh_failure(account: CalendarAccount, error_message: str):
-        """Handle token refresh failure with proper cleanup and notifications"""
-        logger.error(
-            f"Handling refresh failure for account {account.email}: {error_message}"
-        )
-
-        # Deactivate account to prevent further API calls
-        account.is_active = False
-        account.save()
-
-        # TODO: Add user notification system
-        # This would integrate with Django messages or email notifications
-        if TokenConstants.NOTIFY_ON_ACCOUNT_DEACTIVATION:
-            logger.info(
-                f"Account {account.email} deactivated due to token refresh failure"
-            )
-            # Future enhancement: Send notification to user
-
-    @staticmethod
-    def proactive_refresh_check(account: CalendarAccount) -> bool:
-        """Check if account needs proactive token refresh and perform if needed"""
-        if not account.is_active:
-            return False
-
-        if TokenManager.should_refresh_token(account):
-            logger.info(
-                f"Performing proactive token refresh for account {account.email}"
-            )
-            credentials = TokenManager.get_valid_credentials(account)
-            return credentials is not None
-
-        return True
-
-    @staticmethod
-    def validate_all_accounts() -> dict:
-        """Validate and refresh tokens for all active accounts"""
-        active_accounts = CalendarAccount.objects.filter(is_active=True)
-        results = {
-            "total_accounts": active_accounts.count(),
-            "successful_refreshes": 0,
-            "failed_refreshes": 0,
-            "deactivated_accounts": [],
-            "errors": [],
-        }
-
-        logger.info(
-            f"Starting token validation for {results['total_accounts']} active accounts"
-        )
-
-        for account in active_accounts:
-            try:
-                logger.info(f"Validating tokens for account {account.email}")
-
-                # Check if proactive refresh is needed
-                if TokenManager.should_refresh_token(account):
-                    credentials = TokenManager.get_valid_credentials(account)
-
-                    if credentials:
-                        results["successful_refreshes"] += 1
-                        logger.info(
-                            f"Successfully validated/refreshed credentials for account {account.email}"
-                        )
-                    else:
-                        results["failed_refreshes"] += 1
-                        results["deactivated_accounts"].append(account.email)
-                        logger.warning(
-                            f"Failed to validate credentials for account {account.email}"
-                        )
-                else:
-                    logger.info(f"Token for account {account.email} is still valid")
-
-            except Exception as e:
-                error_msg = f"Unexpected error validating account {account.email}: {e}"
-                logger.error(error_msg)
-                results["errors"].append(error_msg)
-                results["failed_refreshes"] += 1
-
-        logger.info(
-            f"Token validation complete: {results['successful_refreshes']} successful, {results['failed_refreshes']} failed"
-        )
-        return results
-
-    @staticmethod
-    def background_token_refresh():
-        """Background task method for proactive token refresh"""
-        logger.info("Starting background token refresh task")
-
-        # Get accounts that need proactive refresh
-        buffer_time = timedelta(minutes=TokenConstants.REFRESH_BUFFER_MINUTES)
-        cutoff_time = timezone.now() + buffer_time
-
-        accounts_needing_refresh = CalendarAccount.objects.filter(
-            is_active=True, token_expires_at__lte=cutoff_time
-        )
-
-        refresh_count = 0
-        for account in accounts_needing_refresh:
-            try:
-                logger.info(f"Background refresh for account {account.email}")
-                if TokenManager.proactive_refresh_check(account):
-                    refresh_count += 1
-                    logger.info(
-                        f"Successfully refreshed token for account {account.email}"
-                    )
-                else:
-                    logger.warning(
-                        f"Background refresh failed for account {account.email}"
-                    )
-
-            except Exception as e:
-                logger.error(
-                    f"Error during background refresh for account {account.email}: {e}"
-                )
-
-        logger.info(
-            f"Background token refresh complete: {refresh_count} tokens refreshed"
-        )
-        return refresh_count
-
-    @staticmethod
-    def revoke_token(account: CalendarAccount) -> bool:
-        """Revoke OAuth tokens for an account with enhanced error handling"""
-        try:
-            access_token = account.get_access_token()
-            refresh_token = account.get_refresh_token()
-
-            if not access_token and not refresh_token:
-                logger.warning(f"No tokens to revoke for account {account.email}")
-                return True  # Consider this successful since there's nothing to revoke
+            if not access_token or not refresh_token:
+                logger.error(f"Missing tokens for account {self.account.email}")
+                return None
 
             credentials = Credentials(
                 token=access_token,
                 refresh_token=refresh_token,
                 token_uri="https://oauth2.googleapis.com/token",
-                client_id=settings.GOOGLE_OAUTH_CLIENT_ID,
-                client_secret=settings.GOOGLE_OAUTH_CLIENT_SECRET,
+                client_id=getattr(settings, "GOOGLE_OAUTH_CLIENT_ID", ""),
+                client_secret=getattr(settings, "GOOGLE_OAUTH_CLIENT_SECRET", ""),
+                scopes=["https://www.googleapis.com/auth/calendar"],
             )
+            credentials.expiry = self.account.token_expires_at
+            return credentials
 
-            # Attempt to revoke the credentials
-            request = Request()
-            credentials.revoke(request)
+        except Exception as e:
+            logger.error(f"Failed to build credentials for {self.account.email}: {e}")
+            return None
 
-            logger.info(f"Successfully revoked tokens for account {account.email}")
+    def _needs_refresh(self) -> bool:
+        """Check if token needs refresh (5 minute buffer)"""
+        if not self.account.token_expires_at:
+            return True
 
-            # Clear stored tokens after successful revocation
-            account.set_access_token("")
-            account.set_refresh_token("")
-            account.is_active = False
-            account.save()
+        buffer_time = timedelta(minutes=5)
+        return timezone.now() + buffer_time >= self.account.token_expires_at
 
+    def _refresh_token_simple(self, credentials: Credentials) -> bool:
+        """Simple token refresh with basic retry (no complex backoff)"""
+        if not credentials.refresh_token:
+            logger.error(f"No refresh token for account {self.account.email}")
+            self._deactivate_account("No refresh token available")
+            return False
+
+        # Simple retry: 3 attempts with 2-second wait
+        for attempt in range(3):
+            try:
+                logger.info(
+                    f"Token refresh attempt {attempt + 1} for {self.account.email}"
+                )
+
+                request = Request()
+                credentials.refresh(request)
+
+                # Save new tokens
+                self.account.set_access_token(credentials.token)
+                self.account.token_expires_at = credentials.expiry
+                self.account.save()
+
+                logger.info(f"Successfully refreshed token for {self.account.email}")
+                return True
+
+            except RefreshError as e:
+                # Check for permanent errors (don't retry these)
+                if "invalid_grant" in str(e) or "unauthorized_client" in str(e):
+                    logger.error(f"Permanent token error for {self.account.email}: {e}")
+                    break
+
+                logger.warning(f"Refresh attempt {attempt + 1} failed: {e}")
+                if attempt < 2:  # Don't sleep on last attempt
+                    time.sleep(2)  # Simple 2-second wait
+
+            except Exception as e:
+                logger.warning(
+                    f"Unexpected refresh error for {self.account.email}: {e}"
+                )
+                if attempt < 2:
+                    time.sleep(2)
+
+        # All attempts failed
+        logger.error(f"Token refresh failed for {self.account.email} after 3 attempts")
+        self._deactivate_account("Token refresh failed")
+        return False
+
+    def _deactivate_account(self, reason: str):
+        """Deactivate account when token refresh fails"""
+        logger.error(f"Deactivating account {self.account.email}: {reason}")
+        self.account.is_active = False
+        self.account.save()
+
+    def revoke_token(self) -> bool:
+        """Revoke OAuth tokens (simplified - just clear local tokens)"""
+        try:
+            # For single-user app, just clear local tokens
+            # Google tokens will expire naturally in 1 hour
+            logger.info(f"Clearing tokens for {self.account.email}")
+
+            # Clear tokens and deactivate
+            self.account.set_access_token("")
+            self.account.set_refresh_token("")
+            self.account.is_active = False
+            self.account.save()
             return True
 
         except Exception as e:
-            logger.error(f"Failed to revoke tokens for account {account.email}: {e!s}")
-            # Even if revocation fails, we should clear local tokens for security
-            account.set_access_token("")
-            account.set_refresh_token("")
-            account.is_active = False
-            account.save()
+            logger.error(f"Token clearing failed for {self.account.email}: {e}")
+            # Still try to deactivate
+            self.account.is_active = False
+            self.account.save()
             return False
 
-    @staticmethod
-    def get_token_status_summary() -> dict:
-        """Get summary of token status across all accounts"""
-        all_accounts = CalendarAccount.objects.all()
-        active_accounts = all_accounts.filter(is_active=True)
 
-        buffer_time = timedelta(minutes=TokenConstants.REFRESH_BUFFER_MINUTES)
-        cutoff_time = timezone.now() + buffer_time
+# Utility functions for backward compatibility with existing code
+def get_valid_credentials(account: CalendarAccount) -> Credentials | None:
+    """Backward compatibility function"""
+    manager = TokenManager(account)
+    return manager.get_valid_credentials()
 
-        tokens_expiring_soon = active_accounts.filter(token_expires_at__lte=cutoff_time)
-        expired_tokens = active_accounts.filter(token_expires_at__lte=timezone.now())
 
-        return {
-            "total_accounts": all_accounts.count(),
-            "active_accounts": active_accounts.count(),
-            "inactive_accounts": all_accounts.filter(is_active=False).count(),
-            "tokens_expiring_soon": tokens_expiring_soon.count(),
-            "expired_tokens": expired_tokens.count(),
-            "healthy_tokens": active_accounts.filter(
-                token_expires_at__gt=cutoff_time
-            ).count(),
-        }
+def revoke_token(account: CalendarAccount) -> bool:
+    """Backward compatibility function"""
+    manager = TokenManager(account)
+    return manager.revoke_token()
+
+
+def validate_all_accounts() -> dict:
+    """Simple validation of all active accounts"""
+    active_accounts = CalendarAccount.objects.filter(is_active=True)
+    successful = 0
+    failed = 0
+    deactivated = []
+
+    for account in active_accounts:
+        try:
+            manager = TokenManager(account)
+            credentials = manager.get_valid_credentials()
+            if credentials:
+                successful += 1
+            else:
+                failed += 1
+                deactivated.append(account.email)
+        except Exception as e:
+            logger.error(f"Error validating account {account.email}: {e}")
+            failed += 1
+
+    return {
+        "total_accounts": active_accounts.count(),
+        "successful_refreshes": successful,
+        "failed_refreshes": failed,
+        "deactivated_accounts": deactivated,
+        "errors": [],
+    }

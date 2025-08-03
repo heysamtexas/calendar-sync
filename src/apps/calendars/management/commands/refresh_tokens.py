@@ -2,7 +2,11 @@
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.calendars.services.token_manager import TokenManager
+from apps.calendars.services.token_manager import (
+    TokenManager,
+    get_valid_credentials,
+    validate_all_accounts,
+)
 
 
 class Command(BaseCommand):
@@ -55,7 +59,19 @@ class Command(BaseCommand):
         self.stdout.write("Token Status Summary:")
         self.stdout.write("=" * 50)
 
-        status = TokenManager.get_token_status_summary()
+        # Simple status check using validate_all_accounts
+        status_results = validate_all_accounts()
+        total = status_results["total_accounts"]
+
+        # Calculate basic status info
+        status = {
+            "total_accounts": total,
+            "active_accounts": total,  # validate_all_accounts only looks at active
+            "inactive_accounts": 0,  # Simplified - don't track this separately
+            "healthy_tokens": status_results["successful_refreshes"],
+            "tokens_expiring_soon": 0,  # Simplified - don't track this separately
+            "expired_tokens": status_results["failed_refreshes"],
+        }
 
         self.stdout.write(f"Total accounts: {status['total_accounts']}")
         self.stdout.write(f"Active accounts: {status['active_accounts']}")
@@ -75,14 +91,16 @@ class Command(BaseCommand):
         self.stdout.write("Starting background token refresh...")
 
         try:
-            refresh_count = TokenManager.background_token_refresh()
+            # Use validate_all_accounts for background refresh
+            results = validate_all_accounts()
+            refresh_count = results["successful_refreshes"]
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Background refresh complete: {refresh_count} tokens refreshed"
                 )
             )
         except Exception as e:
-            raise CommandError(f"Background refresh failed: {e}")
+            raise CommandError(f"Background refresh failed: {e}") from e
 
     def _refresh_specific_account(self, account_id):
         """Refresh tokens for specific account"""
@@ -92,9 +110,11 @@ class Command(BaseCommand):
             account = CalendarAccount.objects.get(id=account_id, is_active=True)
             self.stdout.write(f"Refreshing tokens for account: {account.email}")
 
-            success = TokenManager.proactive_refresh_check(account)
+            # Use simplified token manager
+            manager = TokenManager(account)
+            credentials = manager.get_valid_credentials()
 
-            if success:
+            if credentials:
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Successfully refreshed tokens for {account.email}"
@@ -108,7 +128,7 @@ class Command(BaseCommand):
         except CalendarAccount.DoesNotExist:
             raise CommandError(f"Account with ID {account_id} not found or inactive")
         except Exception as e:
-            raise CommandError(f"Failed to refresh account {account_id}: {e}")
+            raise CommandError(f"Failed to refresh account {account_id}: {e}") from e
 
     def _force_refresh_all(self):
         """Force refresh all active accounts"""
@@ -123,7 +143,8 @@ class Command(BaseCommand):
         for account in active_accounts:
             try:
                 self.stdout.write(f"Force refreshing: {account.email}")
-                credentials = TokenManager.get_valid_credentials(account)
+                manager = TokenManager(account)
+                credentials = manager.get_valid_credentials()
 
                 if credentials:
                     success_count += 1
@@ -147,7 +168,7 @@ class Command(BaseCommand):
         self.stdout.write("Validating all account tokens...")
 
         try:
-            results = TokenManager.validate_all_accounts()
+            results = validate_all_accounts()
 
             self.stdout.write("Validation complete:")
             self.stdout.write(f"  Total accounts: {results['total_accounts']}")
@@ -177,4 +198,4 @@ class Command(BaseCommand):
                     self.stdout.write(f"  - {error}")
 
         except Exception as e:
-            raise CommandError(f"Token validation failed: {e}")
+            raise CommandError(f"Token validation failed: {e}") from e
