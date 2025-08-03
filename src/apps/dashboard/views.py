@@ -148,25 +148,20 @@ def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
     
-    try:
-        # Get calendar and verify ownership
-        calendar = get_object_or_404(
-            Calendar, 
-            id=calendar_id, 
-            calendar_account__user=request.user
-        )
-        
-        # Toggle sync status
-        calendar.sync_enabled = not calendar.sync_enabled
-        calendar.save()
-        
-        action = "enabled" if calendar.sync_enabled else "disabled"
-        logger.info(f"Sync {action} for calendar {calendar.name} by user {request.user.username}")
-        
-        # Return updated sync status partial
-        context = {"calendar": calendar}
-        return render(request, "dashboard/partials/calendar_sync_status.html", context)
-        
-    except Exception as e:
-        logger.error(f"Failed to toggle sync for calendar {calendar_id}: {e}")
-        return HttpResponse("Error toggling sync status", status=500)
+    # Get calendar and verify ownership - get_object_or_404 handles the 404 response
+    calendar = get_object_or_404(
+        Calendar, 
+        id=calendar_id, 
+        calendar_account__user=request.user
+    )
+    
+    # Toggle sync status
+    calendar.sync_enabled = not calendar.sync_enabled
+    calendar.save()
+    
+    action = "enabled" if calendar.sync_enabled else "disabled"
+    logger.info(f"Sync {action} for calendar {calendar.name} by user {request.user.username}")
+    
+    # Return updated sync status partial
+    context = {"calendar": calendar}
+    return render(request, "dashboard/partials/calendar_sync_status.html", context)
