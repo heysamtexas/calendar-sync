@@ -231,20 +231,133 @@ class SyncEngine:
             self.sync_results["events_deleted"] += deleted_count
 
     def _create_cross_calendar_busy_blocks(self):
-        """Create busy blocks in other calendars based on events"""
-        logger.info("Creating cross-calendar busy blocks")
+        """Create busy blocks across ALL sync-enabled calendars (global cross-account sync)"""
+        logger.info("Creating global cross-calendar busy blocks")
 
-        # Get all active calendars grouped by account
-        accounts = CalendarAccount.objects.filter(
-            is_active=True, calendars__sync_enabled=True
-        ).distinct()
+        # Get ALL sync-enabled calendars across ALL accounts for this user
+        # This enables true conflict prevention across different Google accounts
+        all_calendars = list(
+            Calendar.objects.filter(
+                calendar_account__user__isnull=False,  # Has associated user
+                sync_enabled=True,
+                calendar_account__is_active=True,
+            ).select_related('calendar_account', 'calendar_account__user')
+        )
 
-        for account in accounts:
-            calendars = list(account.calendars.filter(sync_enabled=True))
-            if len(calendars) < 2:
-                continue  # Need at least 2 calendars to sync
+        if len(all_calendars) < 2:
+            logger.info("Need at least 2 sync-enabled calendars for busy block creation")
+            return
 
-            self._sync_calendars_for_account(account, calendars)
+        logger.info(f"Creating busy blocks across {len(all_calendars)} calendars from multiple accounts")
+
+        # Create busy blocks from every calendar to every other calendar
+        # This replaces the per-account limitation with global user-wide sync
+        for source_calendar in all_calendars:
+            for target_calendar in all_calendars:
+                if source_calendar.id == target_calendar.id:
+                    continue  # Skip self
+
+                # Only create busy blocks for calendars belonging to the same user
+                if source_calendar.calendar_account.user_id != target_calendar.calendar_account.user_id:
+                    continue
+
+                self._create_cross_account_busy_blocks(source_calendar, target_calendar)
+
+    def _create_cross_account_busy_blocks(self, source_calendar: Calendar, target_calendar: Calendar):
+        """Create busy blocks from source calendar to target calendar (may be different accounts)"""
+        try:
+            # Get time range for busy blocks (next 90 days)
+            time_min = timezone.now()
+            time_max = timezone.now() + timedelta(days=90)
+
+            # Get events from source calendar (only real events, not existing busy blocks)
+            source_events = Event.objects.filter(
+                calendar=source_calendar,
+                start_time__gte=time_min,
+                end_time__lte=time_max,
+                is_busy_block=False,  # Only real events, not our busy blocks
+            )
+
+            if not source_events.exists():
+                logger.debug(f"No events found in source calendar {source_calendar.name}")
+                return
+
+            # Create client for the TARGET calendar's account (may be different from source)
+            target_client = GoogleCalendarClient(target_calendar.calendar_account)
+
+            # Clean up existing busy blocks from this source calendar
+            self._cleanup_cross_account_busy_blocks(target_client, source_calendar, target_calendar)
+
+            # Create new busy blocks in target calendar
+            for event in source_events:
+                try:
+                    # Enhanced busy block title and description with account info
+                    busy_block_title = BusyBlock.generate_title(event.title)
+                    busy_block_description = (
+                        f"CalSync [source:{source_calendar.calendar_account.email}:"
+                        f"{source_calendar.google_calendar_id}:{event.google_event_id}]"
+                    )
+
+                    google_event = target_client.create_busy_block(
+                        target_calendar.google_calendar_id,
+                        busy_block_title,
+                        event.start_time,
+                        event.end_time,
+                        busy_block_description,
+                    )
+
+                    # Save busy block in our database
+                    Event.objects.create(
+                        calendar=target_calendar,
+                        google_event_id=google_event["id"],
+                        title=busy_block_title,
+                        description=busy_block_description,
+                        start_time=event.start_time,
+                        end_time=event.end_time,
+                        is_busy_block=True,
+                        source_event=event,
+                        busy_block_tag=busy_block_description,
+                    )
+
+                    self.sync_results["busy_blocks_created"] += 1
+                    logger.debug(f"Created busy block in {target_calendar.name} for event {event.title}")
+
+                except Exception as e:
+                    logger.warning(f"Failed to create busy block for event {event.title}: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to create cross-account busy blocks from {source_calendar.name} to {target_calendar.name}: {e}")
+
+    def _cleanup_cross_account_busy_blocks(self, target_client: GoogleCalendarClient, 
+                                         source_calendar: Calendar, target_calendar: Calendar):
+        """Remove existing busy blocks from source calendar in target calendar (enhanced for cross-account)"""
+        try:
+            # Enhanced tag pattern includes source account email
+            tag_pattern = f"CalSync [source:{source_calendar.calendar_account.email}:{source_calendar.google_calendar_id}:"
+
+            system_events = target_client.find_system_events(
+                target_calendar.google_calendar_id, tag_pattern
+            )
+
+            if system_events:
+                event_ids = [event["id"] for event in system_events]
+                results = target_client.batch_delete_events(
+                    target_calendar.google_calendar_id, event_ids
+                )
+
+                # Clean up from our database too
+                Event.objects.filter(
+                    calendar=target_calendar,
+                    is_busy_block=True,
+                    busy_block_tag__contains=f"[source:{source_calendar.calendar_account.email}:{source_calendar.google_calendar_id}:",
+                ).delete()
+
+                deleted_count = sum(1 for success in results.values() if success)
+                self.sync_results["busy_blocks_deleted"] += deleted_count
+                logger.debug(f"Cleaned up {deleted_count} existing busy blocks from {source_calendar.name} in {target_calendar.name}")
+
+        except Exception as e:
+            logger.warning(f"Failed to cleanup busy blocks: {e}")
 
     def _sync_calendars_for_account(
         self, account: CalendarAccount, calendars: list[Calendar]
