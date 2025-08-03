@@ -161,3 +161,47 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 3. Verify working tree is clean: `git status`
 4. Write descriptive commit message
 5. Commit and continue development
+
+## Environment Configuration
+
+### Required `.env` File
+
+Copy `src/.env.sample` to `src/.env` and configure with your values:
+
+```bash
+# Django Settings
+DEBUG=True
+SECRET_KEY=your-secret-key-here-change-this-in-production
+
+# Google OAuth Configuration
+GOOGLE_OAUTH_CLIENT_ID=your-google-client-id
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-client-secret
+
+# Allowed Hosts
+ALLOWED_HOSTS=localhost,127.0.0.1
+```
+
+### Google OAuth Setup
+
+1. **Create Google Cloud Project**:
+   - Visit [Google Cloud Console](https://console.cloud.google.com/)
+   - Create new project or select existing
+
+2. **Enable Google Calendar API**:
+   - Navigate to "APIs & Services" > "Library"
+   - Search for "Google Calendar API"
+   - Click "Enable"
+
+3. **Create OAuth Credentials**:
+   - Go to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth 2.0 Client ID"
+   - Choose "Web application"
+   - Set authorized redirect URI: `http://localhost:8000/auth/callback/`
+   - Copy Client ID and Client Secret to `.env`
+
+### Security Notes
+
+- **Never commit `.env`** - it's in `.gitignore`
+- **Change SECRET_KEY** in production
+- **Use environment variables** in production deployment
+- **Rotate OAuth credentials** if compromised
