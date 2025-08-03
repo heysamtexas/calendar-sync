@@ -15,9 +15,12 @@ class OAuthService(BaseService):
         try:
             with transaction.atomic():
                 # Extract account information safely
-                google_account_id = getattr(credentials, "client_id", "unknown")
                 email = self._extract_email_safely(user_info)
                 expires_at = self._calculate_token_expiry(credentials)
+                
+                # Use email as the unique identifier for the Google account
+                # This ensures each Google account creates a separate CalendarAccount record
+                google_account_id = email
 
                 # Create or update account
                 account, created = CalendarAccount.objects.update_or_create(
