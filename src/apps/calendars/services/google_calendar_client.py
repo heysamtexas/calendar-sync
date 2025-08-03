@@ -1,0 +1,296 @@
+"""Simple Google Calendar API client for calendar sync application"""
+
+from datetime import datetime, timedelta
+import logging
+
+from django.utils import timezone
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+from apps.calendars.models import CalendarAccount
+from apps.calendars.services.token_manager import TokenManager
+
+
+logger = logging.getLogger(__name__)
+
+
+class GoogleCalendarClient:
+    """Simple Google Calendar API client - no enterprise complexity"""
+
+    def __init__(self, calendar_account: CalendarAccount):
+        self.account = calendar_account
+        self.token_manager = TokenManager(calendar_account)
+        self._service = None
+
+    def _get_service(self):
+        """Get Google Calendar service with valid credentials"""
+        if self._service is None:
+            credentials = self.token_manager.get_valid_credentials()
+            if not credentials:
+                raise Exception(
+                    f"No valid credentials for account {self.account.email}"
+                )
+
+            self._service = build("calendar", "v3", credentials=credentials)
+
+        return self._service
+
+    def list_calendars(self) -> list[dict]:
+        """List all calendars for the account"""
+        try:
+            service = self._get_service()
+            calendar_list = service.calendarList().list().execute()
+            return calendar_list.get("items", [])
+
+        except HttpError as e:
+            logger.error(f"Failed to list calendars for {self.account.email}: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error listing calendars for {self.account.email}: {e}"
+            )
+            raise
+
+    def get_calendar(self, calendar_id: str) -> dict | None:
+        """Get details for a specific calendar"""
+        try:
+            service = self._get_service()
+            calendar = service.calendars().get(calendarId=calendar_id).execute()
+            return calendar
+
+        except HttpError as e:
+            if e.resp.status == 404:
+                logger.warning(
+                    f"Calendar {calendar_id} not found for {self.account.email}"
+                )
+                return None
+            logger.error(
+                f"Failed to get calendar {calendar_id} for {self.account.email}: {e}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error getting calendar {calendar_id} for {self.account.email}: {e}"
+            )
+            raise
+
+    def list_events(
+        self,
+        calendar_id: str,
+        time_min: datetime | None = None,
+        time_max: datetime | None = None,
+        max_results: int = 250,
+    ) -> list[dict]:
+        """List events from a calendar within time range"""
+        try:
+            service = self._get_service()
+
+            # Default time range if not provided
+            if time_min is None:
+                time_min = timezone.now() - timedelta(days=30)
+            if time_max is None:
+                time_max = timezone.now() + timedelta(days=90)
+
+            # Format times for Google API
+            time_min_str = time_min.isoformat()
+            time_max_str = time_max.isoformat()
+
+            events_result = (
+                service.events()
+                .list(
+                    calendarId=calendar_id,
+                    timeMin=time_min_str,
+                    timeMax=time_max_str,
+                    maxResults=max_results,
+                    singleEvents=True,
+                    orderBy="startTime",
+                )
+                .execute()
+            )
+
+            return events_result.get("items", [])
+
+        except HttpError as e:
+            logger.error(f"Failed to list events for calendar {calendar_id}: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error listing events for calendar {calendar_id}: {e}"
+            )
+            raise
+
+    def get_event(self, calendar_id: str, event_id: str) -> dict | None:
+        """Get a specific event"""
+        try:
+            service = self._get_service()
+            event = (
+                service.events().get(calendarId=calendar_id, eventId=event_id).execute()
+            )
+            return event
+
+        except HttpError as e:
+            if e.resp.status == 404:
+                logger.warning(f"Event {event_id} not found in calendar {calendar_id}")
+                return None
+            logger.error(
+                f"Failed to get event {event_id} from calendar {calendar_id}: {e}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error getting event {event_id} from calendar {calendar_id}: {e}"
+            )
+            raise
+
+    def create_event(self, calendar_id: str, event_data: dict) -> dict:
+        """Create a new event in the calendar"""
+        try:
+            service = self._get_service()
+            event = (
+                service.events()
+                .insert(calendarId=calendar_id, body=event_data)
+                .execute()
+            )
+            logger.info(f"Created event {event['id']} in calendar {calendar_id}")
+            return event
+
+        except HttpError as e:
+            logger.error(f"Failed to create event in calendar {calendar_id}: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error creating event in calendar {calendar_id}: {e}"
+            )
+            raise
+
+    def update_event(self, calendar_id: str, event_id: str, event_data: dict) -> dict:
+        """Update an existing event"""
+        try:
+            service = self._get_service()
+            event = (
+                service.events()
+                .update(calendarId=calendar_id, eventId=event_id, body=event_data)
+                .execute()
+            )
+            logger.info(f"Updated event {event_id} in calendar {calendar_id}")
+            return event
+
+        except HttpError as e:
+            logger.error(
+                f"Failed to update event {event_id} in calendar {calendar_id}: {e}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error updating event {event_id} in calendar {calendar_id}: {e}"
+            )
+            raise
+
+    def delete_event(self, calendar_id: str, event_id: str) -> bool:
+        """Delete an event from the calendar"""
+        try:
+            service = self._get_service()
+            service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+            logger.info(f"Deleted event {event_id} from calendar {calendar_id}")
+            return True
+
+        except HttpError as e:
+            if e.resp.status == 404:
+                logger.warning(
+                    f"Event {event_id} not found in calendar {calendar_id} (already deleted?)"
+                )
+                return True  # Consider missing event as successfully deleted
+            logger.error(
+                f"Failed to delete event {event_id} from calendar {calendar_id}: {e}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error deleting event {event_id} from calendar {calendar_id}: {e}"
+            )
+            raise
+
+    def create_busy_block(
+        self,
+        calendar_id: str,
+        title: str,
+        start_time: datetime,
+        end_time: datetime,
+        description: str = "",
+    ) -> dict:
+        """Create a busy block event with CalSync tagging"""
+
+        # Format times for Google API
+        start_str = start_time.isoformat()
+        end_str = end_time.isoformat()
+
+        event_data = {
+            "summary": title,
+            "description": description,
+            "start": {"dateTime": start_str},
+            "end": {"dateTime": end_str},
+            "transparency": "opaque",  # Show as busy
+            "visibility": "private",
+        }
+
+        return self.create_event(calendar_id, event_data)
+
+    def find_system_events(self, calendar_id: str, tag_pattern: str) -> list[dict]:
+        """Find events created by our system using tag pattern matching"""
+        try:
+            events = self.list_events(calendar_id)
+            system_events = []
+
+            for event in events:
+                title = event.get("summary", "")
+                description = event.get("description", "")
+
+                # Check if this looks like a system-created event
+                if (
+                    tag_pattern in title
+                    or tag_pattern in description
+                    or "CalSync [source:" in title
+                    or "CalSync [source:" in description
+                ):
+                    system_events.append(event)
+
+            return system_events
+
+        except Exception as e:
+            logger.error(f"Failed to find system events in calendar {calendar_id}: {e}")
+            raise
+
+    def batch_delete_events(
+        self, calendar_id: str, event_ids: list[str]
+    ) -> dict[str, bool]:
+        """Delete multiple events (simple approach - no complex batching)"""
+        results = {}
+
+        for event_id in event_ids:
+            try:
+                success = self.delete_event(calendar_id, event_id)
+                results[event_id] = success
+            except Exception as e:
+                logger.error(f"Failed to delete event {event_id}: {e}")
+                results[event_id] = False
+
+        return results
+
+
+def get_google_calendar_client(account: CalendarAccount) -> GoogleCalendarClient:
+    """Factory function to create a Google Calendar client"""
+    return GoogleCalendarClient(account)
+
+
+def test_connection(account: CalendarAccount) -> bool:
+    """Test if we can connect to Google Calendar API"""
+    try:
+        client = GoogleCalendarClient(account)
+        calendars = client.list_calendars()
+        logger.info(
+            f"Successfully connected to Google Calendar for {account.email} - found {len(calendars)} calendars"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to connect to Google Calendar for {account.email}: {e}")
+        return False

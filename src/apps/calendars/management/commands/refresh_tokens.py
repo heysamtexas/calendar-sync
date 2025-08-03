@@ -4,7 +4,6 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.calendars.services.token_manager import (
     TokenManager,
-    get_valid_credentials,
     validate_all_accounts,
 )
 

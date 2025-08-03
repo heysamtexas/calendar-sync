@@ -1,8 +1,8 @@
 """Simplified token management for single-user calendar sync application"""
 
+from datetime import timedelta
 import logging
 import time
-from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
