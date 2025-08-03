@@ -34,7 +34,7 @@ class Command(BaseCommand):
         # Show what will be reset
         self.stdout.write(f"Calendar: {calendar.name}")
         self.stdout.write(f"Google Calendar ID: {calendar.google_calendar_id}")
-        self.stdout.write(f"Account: {calendar.account.email}")
+        self.stdout.write(f"Account: {calendar.calendar_account.email}")
         self.stdout.write("")
         self.stdout.write(
             self.style.WARNING(
