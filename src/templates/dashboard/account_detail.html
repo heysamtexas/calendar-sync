@@ -74,11 +74,7 @@
                     <td>{{ calendar.name }}</td>
                     <td><code>{{ calendar.google_calendar_id }}</code></td>
                     <td>
-                        {% if calendar.sync_enabled %}
-                            <span class="status status-active">Yes</span>
-                        {% else %}
-                            <span class="status status-inactive">No</span>
-                        {% endif %}
+                        {% include 'dashboard/partials/calendar_sync_status.html' %}
                     </td>
                     <td>
                         {% if calendar.is_primary %}

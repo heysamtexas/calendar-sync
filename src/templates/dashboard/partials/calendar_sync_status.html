@@ -1,0 +1,19 @@
+{% if calendar.sync_enabled %}
+    <span class="status status-active">Enabled</span>
+    <button hx-post="{% url 'dashboard:toggle_calendar_sync' calendar.id %}" 
+            hx-target="closest td" 
+            hx-swap="innerHTML"
+            class="btn btn-danger"
+            style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+        Disable
+    </button>
+{% else %}
+    <span class="status status-inactive">Disabled</span>
+    <button hx-post="{% url 'dashboard:toggle_calendar_sync' calendar.id %}" 
+            hx-target="closest td" 
+            hx-swap="innerHTML"
+            class="btn btn-success"
+            style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+        Enable
+    </button>
+{% endif %}
