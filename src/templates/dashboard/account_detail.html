@@ -58,12 +58,12 @@
 <div class="card" role="region" aria-labelledby="calendars-heading">
     <h3 id="calendars-heading">Calendars ({{ calendars.count }})</h3>
     {% if calendars %}
-        <table role="table" aria-label="Calendar synchronization settings">
+        <table role="table" aria-label="Calendar synchronization settings" class="calendars-table responsive-table">
             <thead>
                 <tr>
                     <th>Name</th>
                     <th>Google ID</th>
-                    <th>Sync Enabled</th>
+                    <th>Sync</th>
                     <th>Primary</th>
                     <th>Color</th>
                 </tr>
@@ -71,21 +71,38 @@
             <tbody>
                 {% for calendar in calendars %}
                 <tr>
-                    <td>{{ calendar.name }}</td>
-                    <td><code>{{ calendar.google_calendar_id }}</code></td>
-                    <td>
+                    <td data-label="Name">{{ calendar.name }}</td>
+                    <td data-label="Google ID" class="google-id-cell">
+                        <span class="google-id-truncated" 
+                              title="{{ calendar.google_calendar_id }}"
+                              data-full-id="{{ calendar.google_calendar_id }}">
+                            <code>{{ calendar.google_calendar_id }}</code>
+                        </span>
+                        <button type="button" 
+                                class="copy-id-btn" 
+                                onclick="copyToClipboard('{{ calendar.google_calendar_id }}')"
+                                title="Copy full Google Calendar ID"
+                                aria-label="Copy Google Calendar ID for {{ calendar.name }}">
+                            📋
+                        </button>
+                    </td>
+                    <td data-label="Sync">
                         {% include 'dashboard/partials/calendar_sync_status.html' %}
                     </td>
-                    <td>
+                    <td data-label="Primary">
                         {% if calendar.is_primary %}
                             <span class="status status-active">Yes</span>
                         {% else %}
                             -
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Color">
                         {% if calendar.color %}
-                            <span class="calendar-color-badge" data-color="{{ calendar.color }}" aria-label="Calendar color: {{ calendar.color }}">{{ calendar.color }}</span>
+                            <span class="calendar-color-badge" 
+                                  data-color="{{ calendar.color }}" 
+                                  aria-label="Calendar color: {{ calendar.color }}">
+                                {{ calendar.color }}
+                            </span>
                         {% else %}
                             -
                         {% endif %}

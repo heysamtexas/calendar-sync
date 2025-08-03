@@ -199,6 +199,212 @@ footer {
     font-size: 0.875rem;
 }
 
+/* Toggle Switch Styles */
+.toggle-switch-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 54px;
+    height: 28px;
+    cursor: pointer;
+}
+
+.toggle-checkbox {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s ease;
+    border-radius: 28px;
+    display: flex;
+    align-items: center;
+}
+
+.toggle-indicator {
+    height: 22px;
+    width: 22px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.3s ease;
+    transform: translateX(3px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-checkbox:checked + .toggle-slider {
+    background-color: #28a745;
+}
+
+.toggle-checkbox:checked + .toggle-slider .toggle-indicator {
+    transform: translateX(26px);
+}
+
+.toggle-checkbox:focus + .toggle-slider {
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+}
+
+.toggle-checkbox:disabled + .toggle-slider {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sync-status-text {
+    font-size: 0.9em;
+    color: #6c757d;
+    min-width: 60px;
+}
+
+.status-text.status-enabled {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.status-text.status-disabled {
+    color: #6c757d;
+}
+
+/* Calendar-specific table enhancements */
+.calendars-table {
+    table-layout: fixed;
+}
+
+.calendars-table th:nth-child(1) { width: 25%; } /* Name */
+.calendars-table th:nth-child(2) { width: 35%; } /* Google ID - most space for long IDs */
+.calendars-table th:nth-child(3) { width: 15%; } /* Sync - compact for toggle */
+.calendars-table th:nth-child(4) { width: 10%; } /* Primary */
+.calendars-table th:nth-child(5) { width: 15%; } /* Color */
+
+/* Google ID cell styling */
+.google-id-cell {
+    position: relative;
+    max-width: 0; /* Enable text truncation */
+}
+
+.google-id-truncated {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0; /* Allow flex item to shrink */
+}
+
+.google-id-truncated code {
+    display: block;
+    background: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    border: 1px solid #dee2e6;
+    min-width: 0; /* Allow truncation */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.copy-id-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    font-size: 14px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+}
+
+.copy-id-btn:hover {
+    opacity: 1;
+    background: #f8f9fa;
+}
+
+/* Loading indicator improvements */
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.85em;
+    color: #6c757d;
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive table for mobile */
+@media (max-width: 768px) {
+    .responsive-table {
+        border: 0;
+        box-shadow: none;
+    }
+    
+    .responsive-table thead {
+        display: none;
+    }
+    
+    .responsive-table tr {
+        display: block;
+        margin-bottom: 1rem;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 1rem;
+    }
+    
+    .responsive-table td {
+        display: block;
+        text-align: right;
+        border: none;
+        padding: 0.5rem 0;
+        position: relative;
+    }
+    
+    .responsive-table td:before {
+        content: attr(data-label) ": ";
+        position: absolute;
+        left: 0;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .google-id-cell {
+        max-width: none;
+    }
+    
+    .google-id-truncated {
+        justify-content: flex-end;
+    }
+    
+    .toggle-switch-container {
+        justify-content: flex-end;
+    }
+}
+
 /* Calendar Sync Toggle Components */
 .calendar-sync-toggle {
     position: relative;

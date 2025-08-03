@@ -1,4 +1,3 @@
-{% csrf_token %}
 <div id="calendar-{{ calendar.id }}-status" 
      class="calendar-sync-toggle" 
      role="region" 
@@ -7,43 +6,32 @@
     <form class="sync-toggle-form" method="post">
         {% csrf_token %}
         
-        <div class="sync-status-container">
+        <div class="toggle-switch-container">
+            <label class="toggle-switch" for="sync-toggle-{{ calendar.id }}">
+                <input type="checkbox" 
+                       id="sync-toggle-{{ calendar.id }}"
+                       name="sync_enabled"
+                       {% if calendar.sync_enabled %}checked{% endif %}
+                       hx-post="{% url 'dashboard:toggle_calendar_sync' calendar.id %}"
+                       hx-target="closest td"
+                       hx-swap="innerHTML"
+                       hx-indicator="#loading-{{ calendar.id }}"
+                       aria-label="{% if calendar.sync_enabled %}Disable{% else %}Enable{% endif %} sync for {{ calendar.name }}"
+                       class="toggle-checkbox">
+                <span class="toggle-slider">
+                    <span class="toggle-indicator"></span>
+                </span>
+            </label>
+            
             <span id="sync-status-{{ calendar.id }}" 
-                  class="sync-status"
+                  class="sync-status-text"
                   aria-live="polite">
                 {% if calendar.sync_enabled %}
-                    <span class="status status-active" aria-label="Sync is enabled">
-                        <i class="icon-sync" aria-hidden="true"></i>
-                        Enabled
-                    </span>
+                    <span class="status-text status-enabled">Enabled</span>
                 {% else %}
-                    <span class="status status-inactive" aria-label="Sync is disabled">
-                        <i class="icon-pause" aria-hidden="true"></i>
-                        Disabled
-                    </span>
+                    <span class="status-text status-disabled">Disabled</span>
                 {% endif %}
             </span>
-            
-            <button type="button"
-                    id="toggle-{{ calendar.id }}"
-                    class="btn btn-toggle {% if calendar.sync_enabled %}btn-danger{% else %}btn-success{% endif %}"
-                    hx-post="{% url 'dashboard:toggle_calendar_sync' calendar.id %}"
-                    hx-target="closest td"
-                    hx-swap="innerHTML"
-                    hx-indicator="#loading-{{ calendar.id }}"
-                    aria-describedby="sync-status-{{ calendar.id }}"
-                    aria-label="{% if calendar.sync_enabled %}Disable{% else %}Enable{% endif %} sync for {{ calendar.name }}">
-                    
-                <span class="btn-text">
-                    {% if calendar.sync_enabled %}
-                        <i class="icon-pause" aria-hidden="true"></i>
-                        Disable
-                    {% else %}
-                        <i class="icon-play" aria-hidden="true"></i>
-                        Enable
-                    {% endif %}
-                </span>
-            </button>
         </div>
         
         <!-- Loading indicator -->

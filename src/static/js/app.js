@@ -61,3 +61,81 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
 });
+
+// Copy to clipboard function for Google Calendar IDs
+function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        // Use modern clipboard API
+        navigator.clipboard.writeText(text).then(function() {
+            showCopyNotification('Copied to clipboard!');
+        }).catch(function(err) {
+            console.error('Failed to copy to clipboard:', err);
+            showCopyNotification('Failed to copy', true);
+        });
+    } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            const successful = document.execCommand('copy');
+            showCopyNotification(successful ? 'Copied to clipboard!' : 'Failed to copy', !successful);
+        } catch (err) {
+            console.error('Failed to copy to clipboard:', err);
+            showCopyNotification('Failed to copy', true);
+        }
+        
+        document.body.removeChild(textArea);
+    }
+}
+
+// Show copy notification
+function showCopyNotification(message, isError = false) {
+    // Remove any existing notifications
+    const existingNotification = document.querySelector('.copy-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `copy-notification ${isError ? 'error' : 'success'}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${isError ? '#dc3545' : '#28a745'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Animate out and remove
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 2000);
+}
