@@ -165,6 +165,35 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             account.set_refresh_token(credentials.refresh_token)
         account.save()
 
+        # Discover and create calendar records
+        try:
+            # Get all calendars for this account
+            all_calendars_result = service.calendarList().list().execute()
+            all_calendars = all_calendars_result.get("items", [])
+            
+            calendars_created = 0
+            for cal_item in all_calendars:
+                from apps.calendars.models import Calendar
+                
+                calendar, cal_created = Calendar.objects.update_or_create(
+                    calendar_account=account,
+                    google_calendar_id=cal_item["id"],
+                    defaults={
+                        "name": cal_item.get("summary", "Unnamed Calendar"),
+                        "is_primary": cal_item.get("primary", False),
+                        "access_role": cal_item.get("accessRole", "reader"),
+                        "sync_enabled": True,  # Enable sync by default
+                    },
+                )
+                if cal_created:
+                    calendars_created += 1
+            
+            logger.info(f"Discovered {len(all_calendars)} calendars, created {calendars_created} new calendar records for {email}")
+            
+        except Exception as e:
+            logger.error(f"Failed to discover calendars for {email}: {e}")
+            # Don't fail the whole flow, just log the error
+
         # Clean up session
         request.session.pop("oauth_state", None)
 
