@@ -20,8 +20,11 @@ if settings.DEBUG:
 
 logger = logging.getLogger(__name__)
 
-# OAuth 2.0 scope for Google Calendar
-SCOPES = ["https://www.googleapis.com/auth/calendar"]
+# OAuth 2.0 scopes for Google Calendar and user profile
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/userinfo.email",
+]
 
 
 def get_oauth_flow(request: HttpRequest) -> Flow:
@@ -110,16 +113,35 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
 
         credentials = flow.credentials
 
-        # Get user info from Google (minimal info needed for service)
+        # Get user info from Google (get actual email address)
         from googleapiclient.discovery import build
-        service = build("calendar", "v3", credentials=credentials)
         
-        # Get primary calendar for email extraction
         try:
-            calendars_result = service.calendarList().list(maxResults=1).execute()
-            calendars = calendars_result.get("items", [])
-            user_info = {"email": calendars[0].get("summary", "Unknown")} if calendars else {"email": "Unknown"}
-        except Exception:
+            # Use OAuth2 API to get user profile information
+            oauth2_service = build("oauth2", "v2", credentials=credentials)
+            user_profile = oauth2_service.userinfo().get().execute()
+            user_email = user_profile.get("email", "Unknown")
+            
+            # Fallback: try to get primary calendar email if OAuth2 API fails
+            if user_email == "Unknown":
+                calendar_service = build("calendar", "v3", credentials=credentials)
+                calendars_result = calendar_service.calendarList().list().execute()
+                calendars = calendars_result.get("items", [])
+                
+                # Find the primary calendar
+                for calendar in calendars:
+                    if calendar.get("primary", False):
+                        user_email = calendar.get("id", "Unknown")  # Calendar ID is usually the email
+                        break
+                
+                # Final fallback: use first calendar ID
+                if user_email == "Unknown" and calendars:
+                    user_email = calendars[0].get("id", "Unknown")
+            
+            user_info = {"email": user_email}
+            
+        except Exception as e:
+            logger.warning(f"Failed to get user email: {e}")
             user_info = {"email": "Unknown"}
 
         # Use OAuth service for business logic
