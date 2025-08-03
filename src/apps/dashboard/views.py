@@ -81,9 +81,8 @@ def refresh_calendars(request: HttpRequest, account_id: int) -> HttpResponse:
         # Create Google Calendar client
         client = GoogleCalendarClient(account)
         
-        # Get all calendars from Google
-        calendars_result = client.service.calendarList().list().execute()
-        calendars_data = calendars_result.get("items", [])
+        # Get all calendars from Google using the client's method
+        calendars_data = client.list_calendars()
         
         if not calendars_data:
             messages.warning(request, f"No calendars found for account: {account.email}")
