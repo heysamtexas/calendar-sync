@@ -24,6 +24,7 @@ dev = [
     "coverage[toml]",
     "mypy",
     "django-stubs[compatible-mypy]",
+    "django-debug-toolbar",
 ]
 
 # Build system removed - using pyproject.toml for dependency management only

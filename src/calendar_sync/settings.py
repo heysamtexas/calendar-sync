@@ -59,6 +59,15 @@ INSTALLED_APPS = [
     "apps.dashboard",
 ]
 
+# Add Django Debug Toolbar for development
+if DEBUG:
+    INSTALLED_APPS += ["debug_toolbar"]
+    # Debug Toolbar configuration
+    INTERNAL_IPS = [
+        "127.0.0.1",
+        "localhost",
+    ]
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -69,6 +78,10 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# Add Django Debug Toolbar middleware for development
+if DEBUG:
+    MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
 
 ROOT_URLCONF = "calendar_sync.urls"
 

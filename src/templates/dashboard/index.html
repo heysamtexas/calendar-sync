@@ -14,7 +14,7 @@
     <table role="table" aria-label="Calendar synchronization statistics">
         <tr>
             <td><strong>Connected Accounts:</strong></td>
-            <td>{{ calendar_accounts.count }}</td>
+            <td>{{ calendar_accounts|length }}</td>
         </tr>
         <tr>
             <td><strong>Active Accounts:</strong></td>
@@ -62,7 +62,7 @@
                             <span class="status status-inactive">Inactive</span>
                         {% endif %}
                     </td>
-                    <td>{{ account.calendars.count }}</td>
+                    <td>{{ account.calendar_count }}</td>
                     <td>
                         {% if account.last_sync %}
                             {{ account.last_sync|date:"M d, Y H:i" }}

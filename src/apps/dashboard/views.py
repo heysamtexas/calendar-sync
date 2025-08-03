@@ -4,6 +4,7 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.csrf import csrf_protect
@@ -22,21 +23,29 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     # Get or create user profile
     profile, created = UserProfile.objects.get_or_create(user=request.user)
 
-    # Get all calendar accounts for this user
-    calendar_accounts = CalendarAccount.objects.filter(user=request.user).order_by(
-        "email"
+    # Get all calendar accounts with optimized queries (Query 1)
+    calendar_accounts = list(
+        CalendarAccount.objects.filter(user=request.user)
+        .select_related("user")  # Avoid extra user query
+        .annotate(
+            calendar_count=models.Count("calendars"),
+            active_calendar_count=models.Count(
+                "calendars", filter=models.Q(calendars__sync_enabled=True)
+            ),
+        )
+        .order_by("email")
     )
 
-    # Get recent sync logs
-    recent_syncs = SyncLog.objects.filter(calendar_account__user=request.user).order_by(
-        "-started_at"
-    )[:10]
+    # Get recent sync logs with calendar account data (Query 2)
+    recent_syncs = (
+        SyncLog.objects.filter(calendar_account__user=request.user)
+        .select_related("calendar_account")  # Avoid N+1 on calendar account
+        .order_by("-started_at")[:10]
+    )
 
-    # Calculate statistics
-    total_calendars = Calendar.objects.filter(
-        calendar_account__user=request.user
-    ).count()
-    active_accounts = calendar_accounts.filter(is_active=True).count()
+    # Calculate aggregated statistics using the already-fetched data
+    total_calendars = sum(account.calendar_count for account in calendar_accounts)
+    active_accounts = sum(1 for account in calendar_accounts if account.is_active)
 
     context = {
         "profile": profile,
@@ -53,13 +62,29 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 @login_required
 def account_detail(request: HttpRequest, account_id: int) -> HttpResponse:
     """Detailed view of a specific calendar account"""
-    account = get_object_or_404(CalendarAccount, id=account_id, user=request.user)
+    # Get account with prefetched data (Query 1)
+    account = get_object_or_404(
+        CalendarAccount.objects.select_related("user")
+        .prefetch_related(
+            models.Prefetch(
+                "calendars",
+                queryset=Calendar.objects.annotate(
+                    event_count=models.Count("events"),
+                    busy_block_count=models.Count(
+                        "events", filter=models.Q(events__is_busy_block=True)
+                    ),
+                ).order_by("name"),
+            )
+        ),
+        id=account_id,
+        user=request.user,
+    )
 
-    # Get calendars for this account
-    calendars = account.calendars.all().order_by("name")
-
-    # Get sync logs for this account
+    # Get sync logs for this account (Query 2)
     sync_logs = account.sync_logs.order_by("-started_at")[:20]
+
+    # Access calendars from prefetched data (no additional query)
+    calendars = account.calendars.all()
 
     context = {
         "account": account,
