@@ -99,7 +99,8 @@ def refresh_calendars(request: HttpRequest, account_id: int) -> HttpResponse:
                 defaults={
                     "name": cal_item.get("summary", "Unnamed Calendar"),
                     "is_primary": cal_item.get("primary", False),
-                    "access_role": cal_item.get("accessRole", "reader"),
+                    "description": cal_item.get("description", ""),
+                    "color": cal_item.get("backgroundColor", ""),
                     # Keep existing sync_enabled setting, default to True for new calendars
                 },
             )

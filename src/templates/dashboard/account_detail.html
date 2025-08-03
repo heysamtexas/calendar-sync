@@ -65,7 +65,7 @@
                     <th>Google ID</th>
                     <th>Sync Enabled</th>
                     <th>Primary</th>
-                    <th>Access Role</th>
+                    <th>Color</th>
                 </tr>
             </thead>
             <tbody>
@@ -87,7 +87,13 @@
                             -
                         {% endif %}
                     </td>
-                    <td>{{ calendar.access_role|default:"-" }}</td>
+                    <td>
+                        {% if calendar.color %}
+                            <span style="background-color: {{ calendar.color }}; padding: 0.25rem 0.5rem; border-radius: 3px; color: white; font-size: 0.75rem;">{{ calendar.color }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
