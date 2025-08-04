@@ -149,7 +149,7 @@ class GoogleCalendarClient:
         import time
         
         max_retries = 3
-        base_delay = 1  # Start with 1 second delay
+        base_delay = 3  # Start with 3 second delay
         
         for attempt in range(max_retries + 1):
             try:
@@ -212,7 +212,7 @@ class GoogleCalendarClient:
         import time
         
         max_retries = 3
-        base_delay = 1
+        base_delay = 3
         
         for attempt in range(max_retries + 1):
             try:
@@ -319,7 +319,7 @@ class GoogleCalendarClient:
                 
                 # Add delay between deletions to avoid rate limiting (except for last item)
                 if i < len(event_ids) - 1:
-                    time.sleep(0.2)  # 200ms delay between deletions
+                    time.sleep(1.0)  # 1 second delay between deletions
                     
             except Exception as e:
                 logger.error(f"Failed to delete event {event_id}: {e}")

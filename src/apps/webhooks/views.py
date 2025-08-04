@@ -58,8 +58,8 @@ class GoogleWebhookView(View):
             logger.info(f"Skipping webhook - already processing for channel {channel_id}")
             return
             
-        # Set processing flag for 30 seconds
-        cache.set(cache_key, True, 30)
+        # Set processing flag for 60 seconds (longer to prevent rapid duplicate processing)
+        cache.set(cache_key, True, 60)
         
         try:
             from apps.calendars.models import Calendar
@@ -103,9 +103,9 @@ class GoogleWebhookView(View):
             # This ensures changes in one calendar create/update busy blocks in other calendars
             logger.info("Starting cross-calendar busy block creation")
             
-            # Add small delay to avoid rate limiting when processing multiple webhooks rapidly
+            # Add delay to avoid rate limiting when processing multiple webhooks rapidly
             import time
-            time.sleep(0.5)  # 500ms delay to respect Google's rate limits
+            time.sleep(2.0)  # 2 second delay to respect Google's rate limits
             
             sync_engine._create_cross_calendar_busy_blocks()
             logger.info(f"Final sync results: {sync_engine.sync_results}")
