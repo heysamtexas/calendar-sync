@@ -191,26 +191,34 @@ class UUIDCorrelationSyncEngine:
         """
         try:
             # Generate new UUID for legacy event
-            correlation_uuid = str(uuid.uuid4())
+            correlation_uuid = uuid.uuid4()
             
-            # Create EventState for legacy event
-            event_state = EventState.create_user_event(
-                calendar=calendar,
-                google_event_id=google_event['id'],
-                title=google_event.get('summary', ''),
-                start_time=self._parse_event_datetime(google_event.get('start')),
-                end_time=self._parse_event_datetime(google_event.get('end'))
-            )
-            event_state.uuid = correlation_uuid
-            event_state.save(update_fields=['uuid'])
+            # Create EventState for legacy event with pre-generated UUID
+            from django.db import transaction
             
-            # Add UUID correlation to Google event
-            client = GoogleCalendarClient(calendar.calendar_account)
-            client.update_event_with_uuid_correlation(
-                calendar_id=calendar.google_calendar_id,
-                google_event_id=google_event['id'],
-                correlation_uuid=correlation_uuid
-            )
+            with transaction.atomic():
+                # Create EventState directly with specific UUID
+                event_state = EventState(
+                    uuid=correlation_uuid,
+                    calendar=calendar,
+                    google_event_id=google_event['id'],
+                    status='SYNCED',  # Legacy events are already synced
+                    is_busy_block=False,  # Legacy user events are not busy blocks
+                    source_uuid=None,  # User events don't have source
+                    title=google_event.get('summary', ''),
+                    start_time=self._parse_event_datetime(google_event.get('start')),
+                    end_time=self._parse_event_datetime(google_event.get('end')),
+                    last_seen_at=timezone.now()
+                )
+                event_state.save()
+                
+                # Add UUID correlation to Google event
+                client = GoogleCalendarClient(calendar.calendar_account)
+                client.update_event_with_uuid_correlation(
+                    calendar_id=calendar.google_calendar_id,
+                    google_event_id=google_event['id'],
+                    correlation_uuid=str(correlation_uuid)
+                )
             
             logger.info(f"🔄 Upgraded legacy event to UUID correlation: {correlation_uuid}")
             
