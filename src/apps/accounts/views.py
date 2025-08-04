@@ -55,12 +55,6 @@ def get_oauth_flow(request: HttpRequest) -> Flow:
 def oauth_initiate(request: HttpRequest) -> HttpResponse:
     """Initiate OAuth flow for Google Calendar"""
     try:
-        # Debug: Log the redirect URI being used
-        redirect_uri = request.build_absolute_uri(reverse("accounts:auth_callback"))
-        logger.info(f"DEBUG: OAuth redirect URI: {redirect_uri}")
-        logger.info(f"DEBUG: Request host: {request.get_host()}")
-        logger.info(f"DEBUG: Request is_secure: {request.is_secure()}")
-        
         flow = get_oauth_flow(request)
 
         # Generate authorization URL
