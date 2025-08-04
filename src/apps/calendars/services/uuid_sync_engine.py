@@ -162,6 +162,10 @@ class UUIDCorrelationSyncEngine:
         is_ours, correlation_uuid = UUIDCorrelationUtils.is_our_event(google_event)
         
         if correlation_uuid:
+            # DEBUG: Log classification decision
+            event_title = google_event.get('summary', 'No Title')
+            logger.info(f"🔍 Event classification: '{event_title}' -> is_ours={is_ours}, uuid={correlation_uuid}")
+            
             if is_ours:
                 return {
                     'action': 'skip_our_event',
@@ -330,8 +334,13 @@ class UUIDCorrelationSyncEngine:
             # Create busy block in Google Calendar with UUID correlation
             client = GoogleCalendarClient(target_calendar.calendar_account)
             
+            # CRITICAL: Clean title to prevent cascade prefixes
+            clean_title = source_event_state.title or "Event"
+            if clean_title.startswith('Busy - '):
+                clean_title = clean_title[7:]  # Remove existing "Busy - " prefix
+            
             event_data = {
-                'summary': f'Busy - {source_event_state.title or "Event"}',
+                'summary': f'Busy - {clean_title}',
                 'description': f'Busy block for event from {source_event_state.calendar.name}',
                 'start': self._format_event_datetime(source_event_state.start_time),
                 'end': self._format_event_datetime(source_event_state.end_time),
@@ -592,7 +601,12 @@ class UUIDCorrelationSyncEngine:
         try:
             with transaction.atomic():
                 # Update busy block database record first
-                busy_block.title = f"Busy - {source_event.title or 'Event'}"
+                # CRITICAL: Clean source title to prevent "Busy - Busy -" cascade
+                clean_title = source_event.title or 'Event'
+                if clean_title.startswith('Busy - '):
+                    clean_title = clean_title[7:]  # Remove "Busy - " prefix
+                
+                busy_block.title = f"Busy - {clean_title}"
                 busy_block.start_time = source_event.start_time
                 busy_block.end_time = source_event.end_time
                 busy_block.updated_at = timezone.now()
