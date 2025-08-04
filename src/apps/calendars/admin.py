@@ -10,10 +10,10 @@ from .models import CalendarAccount, Calendar, Event, SyncLog
 
 @admin.register(CalendarAccount)
 class CalendarAccountAdmin(admin.ModelAdmin):
-    list_display = ('email', 'user', 'is_active', 'token_expires_at', 'last_sync_at', 'created_at')
-    list_filter = ('is_active', 'created_at', 'token_expires_at', 'last_sync_at')
+    list_display = ('email', 'user', 'is_active', 'token_expires_at', 'get_last_sync', 'created_at')
+    list_filter = ('is_active', 'created_at', 'token_expires_at')
     search_fields = ('email', 'user__username', 'google_account_id')
-    readonly_fields = ('google_account_id', 'created_at', 'updated_at', 'access_token', 'refresh_token')
+    readonly_fields = ('google_account_id', 'created_at', 'updated_at', 'access_token', 'refresh_token', 'get_last_sync', 'get_sync_summary')
     
     fieldsets = (
         ('Account Info', {
@@ -24,13 +24,29 @@ class CalendarAccountAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Sync Status', {
-            'fields': ('last_sync_at', 'sync_enabled')
+            'fields': ('get_last_sync', 'get_sync_summary')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def get_last_sync(self, obj):
+        from .models import SyncLog
+        last_sync = SyncLog.objects.filter(calendar_account=obj).order_by('-started_at').first()
+        if last_sync:
+            return f"{last_sync.started_at} ({last_sync.status})"
+        return "No syncs yet"
+    get_last_sync.short_description = 'Last Sync'
+    
+    def get_sync_summary(self, obj):
+        from .models import Calendar
+        calendars = Calendar.objects.filter(calendar_account=obj)
+        sync_enabled = calendars.filter(sync_enabled=True).count()
+        total = calendars.count()
+        return f"{sync_enabled}/{total} calendars sync-enabled"
+    get_sync_summary.short_description = 'Sync Summary'
 
 
 @admin.register(Calendar)
