@@ -20,5 +20,5 @@ urlpatterns = [
         views.toggle_calendar_sync,
         name="toggle_calendar_sync",
     ),
-    path("account/<int:account_id>/sync/", views.manual_sync, name="manual_sync"),
+    path("sync/", views.global_manual_sync, name="global_sync"),
 ]

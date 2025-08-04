@@ -106,16 +106,12 @@ def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse
 
 @login_required
 @require_POST
-def manual_sync(request: HttpRequest, account_id: int) -> HttpResponse:
-    """Manually trigger sync for a specific account"""
-    from apps.calendars.models import CalendarAccount
+def global_manual_sync(request: HttpRequest) -> HttpResponse:
+    """Manually trigger sync for all user's calendars"""
     from apps.calendars.services.sync_engine import sync_all_calendars
 
     try:
-        # Verify user owns this account
-        account = CalendarAccount.objects.get(id=account_id, user=request.user)
-
-        # Run sync for all calendars of this user (includes this account)
+        # Run sync for all calendars of this user
         results = sync_all_calendars(verbose=True)
 
         if results["errors"]:
@@ -132,12 +128,11 @@ def manual_sync(request: HttpRequest, account_id: int) -> HttpResponse:
                 f"created {results['busy_blocks_created']} busy blocks.",
             )
 
-        return redirect("dashboard:account_detail", account_id=account_id)
-
-    except CalendarAccount.DoesNotExist:
-        messages.error(request, "Account not found or access denied.")
         return redirect("dashboard:index")
+
     except Exception as e:
-        logger.error(f"Manual sync failed for account {account_id}: {e}")
+        logger.error(f"Global manual sync failed: {e}")
         messages.error(request, "Sync failed. Please try again or check the logs.")
-        return redirect("dashboard:account_detail", account_id=account_id)
+        return redirect("dashboard:index")
+
+

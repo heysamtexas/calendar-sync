@@ -120,20 +120,35 @@ class TemplateAccessibilityTest(TestCase):
         self.assertIn("Add a new Google Calendar account to sync", content)
 
     def test_disabled_buttons_with_explanations(self):
-        """Test disabled buttons have accessible explanations"""
+        """Test disabled buttons have accessible explanations for inactive accounts"""
         self.client.login(username="testuser", password="testpass123")
+
+        # Create an inactive account to test disabled buttons
+        self.account.is_active = False
+        self.account.save()
 
         response = self.client.get(
             reverse("dashboard:account_detail", args=[self.account.id])
         )
         content = response.content.decode()
 
-        # Should have disabled buttons with help text
-        self.assertIn('disabled aria-describedby="manual-sync-help"', content)
-        self.assertIn("Manual sync functionality coming soon", content)
+        # Should have disabled buttons with help text for inactive accounts
+        self.assertIn('disabled aria-describedby="reactivate-help"', content)
+        self.assertIn("Account reactivation functionality coming soon", content)
+        self.assertIn('disabled aria-describedby="remove-help"', content)
+        self.assertIn("Account removal functionality coming soon", content)
 
-        self.assertIn('disabled aria-describedby="disconnect-help"', content)
-        self.assertIn("Account disconnection functionality coming soon", content)
+    def test_global_sync_button_accessibility(self):
+        """Test global sync button has proper accessibility"""
+        self.client.login(username="testuser", password="testpass123")
+
+        response = self.client.get(reverse("dashboard:index"))
+        content = response.content.decode()
+
+        # Should have accessible sync button with help text
+        self.assertIn('aria-describedby="sync-help"', content)
+        self.assertIn("Manually trigger synchronization for all connected calendar accounts", content)
+        self.assertIn("Sync All Calendars", content)
 
     def test_form_labels_accessibility(self):
         """Test form labels have proper accessibility"""

@@ -139,8 +139,11 @@
         <a href="{% url 'accounts:connect' %}" class="btn btn-success" aria-describedby="connect-help">Connect New Account</a>
         <span id="connect-help" class="sr-only">Add a new Google Calendar account to sync</span>
         {% if calendar_accounts %}
-            <button type="button" class="btn" disabled aria-describedby="sync-help">Run Manual Sync</button>
-            <span id="sync-help" class="sr-only">Manual sync functionality coming soon</span>
+            <form method="post" action="{% url 'dashboard:global_sync' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success" aria-describedby="sync-help">Sync All Calendars</button>
+            </form>
+            <span id="sync-help" class="sr-only">Manually trigger synchronization for all connected calendar accounts</span>
         {% endif %}
     </div>
 </div>
