@@ -50,6 +50,17 @@ class GoogleWebhookView(View):
         """Trigger existing sync logic for the calendar that changed"""
         logger.info(f"Webhook triggered for calendar {calendar_id}, channel {channel_id}")
         
+        # Simple rate limiting: Skip if we're already processing a webhook for this calendar
+        from django.core.cache import cache
+        cache_key = f"webhook_processing_{channel_id}"
+        
+        if cache.get(cache_key):
+            logger.info(f"Skipping webhook - already processing for channel {channel_id}")
+            return
+            
+        # Set processing flag for 30 seconds
+        cache.set(cache_key, True, 30)
+        
         try:
             from apps.calendars.models import Calendar
             from apps.calendars.services.sync_engine import SyncEngine
@@ -103,3 +114,6 @@ class GoogleWebhookView(View):
             logger.error(f"Webhook sync failed for {calendar_id}: {e}")
             logger.exception("Full webhook sync error traceback:")
             # Fail silently - webhooks should never return errors to Google
+        finally:
+            # Clear processing flag
+            cache.delete(cache_key)

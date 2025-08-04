@@ -208,33 +208,51 @@ class GoogleCalendarClient:
             raise
 
     def delete_event(self, calendar_id: str, event_id: str) -> bool:
-        """Delete an event from the calendar"""
-        try:
-            service = self._get_service()
-            service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
-            logger.info(f"Deleted event {event_id} from calendar {calendar_id}")
-            return True
+        """Delete an event from the calendar with rate limiting handling"""
+        import time
+        
+        max_retries = 3
+        base_delay = 1
+        
+        for attempt in range(max_retries + 1):
+            try:
+                service = self._get_service()
+                service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+                logger.info(f"Deleted event {event_id} from calendar {calendar_id}")
+                return True
 
-        except HttpError as e:
-            if e.resp.status == 404:
-                logger.warning(
-                    f"Event {event_id} not found in calendar {calendar_id} (already deleted?)"
+            except HttpError as e:
+                if e.resp.status == 404:
+                    logger.warning(
+                        f"Event {event_id} not found in calendar {calendar_id} (already deleted?)"
+                    )
+                    return True  # Consider missing event as successfully deleted
+                elif e.resp.status == 410:
+                    logger.info(
+                        f"Event {event_id} already deleted from calendar {calendar_id} (410 Resource deleted)"
+                    )
+                    return True  # Consider already-deleted event as successfully deleted
+                elif e.resp.status == 403 and 'rateLimitExceeded' in str(e):
+                    if attempt < max_retries:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"Rate limit hit deleting event, retrying in {delay}s (attempt {attempt + 1}/{max_retries + 1})")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"Rate limit exceeded after {max_retries} retries deleting event {event_id}")
+                        return False  # Don't raise, just return False
+                else:
+                    logger.error(
+                        f"Failed to delete event {event_id} from calendar {calendar_id}: {e}"
+                    )
+                    raise
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error deleting event {event_id} from calendar {calendar_id}: {e}"
                 )
-                return True  # Consider missing event as successfully deleted
-            elif e.resp.status == 410:
-                logger.info(
-                    f"Event {event_id} already deleted from calendar {calendar_id} (410 Resource deleted)"
-                )
-                return True  # Consider already-deleted event as successfully deleted
-            logger.error(
-                f"Failed to delete event {event_id} from calendar {calendar_id}: {e}"
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"Unexpected error deleting event {event_id} from calendar {calendar_id}: {e}"
-            )
-            raise
+                raise
+        
+        return False  # This should never be reached
 
     def create_busy_block(
         self,
@@ -289,13 +307,20 @@ class GoogleCalendarClient:
     def batch_delete_events(
         self, calendar_id: str, event_ids: list[str]
     ) -> dict[str, bool]:
-        """Delete multiple events (simple approach - no complex batching)"""
+        """Delete multiple events with rate limiting between calls"""
+        import time
+        
         results = {}
-
-        for event_id in event_ids:
+        
+        for i, event_id in enumerate(event_ids):
             try:
                 success = self.delete_event(calendar_id, event_id)
                 results[event_id] = success
+                
+                # Add delay between deletions to avoid rate limiting (except for last item)
+                if i < len(event_ids) - 1:
+                    time.sleep(0.2)  # 200ms delay between deletions
+                    
             except Exception as e:
                 logger.error(f"Failed to delete event {event_id}: {e}")
                 results[event_id] = False
