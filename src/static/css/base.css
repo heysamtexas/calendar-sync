@@ -60,33 +60,34 @@
     }
 }
 
-/* Manual dark mode class override */
-html.dark-mode {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2d2d2d;
-    --bg-tertiary: #1e1e1e;
-    --text-primary: #e9ecef;
-    --text-secondary: #adb5bd;
-    --text-muted: #868e96;
-    --border-color: #495057;
-    --border-light: #343a40;
-    --accent-primary: #4dabf7;
-    --accent-primary-hover: #339af0;
-    --success-bg: #1b4332;
-    --success-text: #d1e7dd;
-    --success-border: #2d5a3d;
-    --error-bg: #58151c;
-    --error-text: #f8d7da;
-    --error-border: #842029;
-    --warning-bg: #664d03;
-    --warning-text: #fff3cd;
-    --warning-border: #997404;
-    --danger-bg: #dc3545;
-    --danger-hover: #bb2d3b;
-    --toggle-bg: #198754;
-    --toggle-hover: #157347;
-    --shadow: rgba(0, 0, 0, 0.3);
-    --shadow-dark: rgba(0, 0, 0, 0.5);
+/* Manual dark mode class override - higher specificity */
+html.dark-mode,
+html.dark-mode:root {
+    --bg-primary: #1a1a1a !important;
+    --bg-secondary: #2d2d2d !important;
+    --bg-tertiary: #1e1e1e !important;
+    --text-primary: #e9ecef !important;
+    --text-secondary: #adb5bd !important;
+    --text-muted: #868e96 !important;
+    --border-color: #495057 !important;
+    --border-light: #343a40 !important;
+    --accent-primary: #4dabf7 !important;
+    --accent-primary-hover: #339af0 !important;
+    --success-bg: #1b4332 !important;
+    --success-text: #d1e7dd !important;
+    --success-border: #2d5a3d !important;
+    --error-bg: #58151c !important;
+    --error-text: #f8d7da !important;
+    --error-border: #842029 !important;
+    --warning-bg: #664d03 !important;
+    --warning-text: #fff3cd !important;
+    --warning-border: #997404 !important;
+    --danger-bg: #dc3545 !important;
+    --danger-hover: #bb2d3b !important;
+    --toggle-bg: #198754 !important;
+    --toggle-hover: #157347 !important;
+    --shadow: rgba(0, 0, 0, 0.3) !important;
+    --shadow-dark: rgba(0, 0, 0, 0.5) !important;
 }
 
 * {
@@ -794,8 +795,23 @@ input:focus, textarea:focus, select:focus {
     content: "🌙";
 }
 
-/* Dark mode transitions */
-* {
+/* Dark mode transitions - but don't apply to everything */
+body,
+header,
+footer,
+.card,
+form,
+table,
+th,
+td,
+input,
+textarea,
+select,
+button,
+.btn,
+.google-id-truncated code,
+.copy-id-btn,
+.dark-mode-toggle {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 

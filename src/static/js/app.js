@@ -4,22 +4,32 @@ function initializeDarkMode() {
     const darkModeIcon = document.getElementById('darkModeIcon');
     const html = document.documentElement;
     
+    console.log('Dark mode toggle found:', !!darkModeToggle);
+    console.log('Dark mode icon found:', !!darkModeIcon);
+    
     // Check for saved theme preference or default to system preference
     const savedTheme = localStorage.getItem('darkMode');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
     let isDarkMode = savedTheme === 'enabled' || (savedTheme === null && systemPrefersDark);
+    console.log('Initial dark mode state:', isDarkMode, 'savedTheme:', savedTheme, 'systemPrefersDark:', systemPrefersDark);
     
     // Apply initial theme
     updateDarkMode(isDarkMode);
     
     // Toggle dark mode on button click
     if (darkModeToggle) {
-        darkModeToggle.addEventListener('click', function() {
+        darkModeToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Dark mode toggle clicked, current state:', isDarkMode);
             isDarkMode = !isDarkMode;
+            console.log('New dark mode state:', isDarkMode);
             updateDarkMode(isDarkMode);
             localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+            console.log('Saved to localStorage:', localStorage.getItem('darkMode'));
         });
+    } else {
+        console.error('Dark mode toggle button not found!');
     }
     
     // Listen for system theme changes
@@ -31,6 +41,9 @@ function initializeDarkMode() {
     });
     
     function updateDarkMode(isDark) {
+        console.log('updateDarkMode called with:', isDark);
+        console.log('HTML element before:', html.classList.contains('dark-mode'));
+        
         if (isDark) {
             html.classList.add('dark-mode');
             if (darkModeIcon) {
@@ -42,6 +55,9 @@ function initializeDarkMode() {
                 darkModeIcon.className = 'dark-mode-icon light';
             }
         }
+        
+        console.log('HTML element after:', html.classList.contains('dark-mode'));
+        console.log('Icon class after:', darkModeIcon ? darkModeIcon.className : 'no icon');
         
         // Update the global isDarkMode variable
         window.isDarkModeActive = isDark;
