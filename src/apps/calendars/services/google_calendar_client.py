@@ -202,6 +202,11 @@ class GoogleCalendarClient:
                     f"Event {event_id} not found in calendar {calendar_id} (already deleted?)"
                 )
                 return True  # Consider missing event as successfully deleted
+            elif e.resp.status == 410:
+                logger.info(
+                    f"Event {event_id} already deleted from calendar {calendar_id} (410 Resource deleted)"
+                )
+                return True  # Consider already-deleted event as successfully deleted
             logger.error(
                 f"Failed to delete event {event_id} from calendar {calendar_id}: {e}"
             )
