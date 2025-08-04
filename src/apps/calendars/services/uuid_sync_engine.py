@@ -6,6 +6,7 @@ No more webhook storms. No more events blinking on/off.
 """
 
 import logging
+import sys
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -93,6 +94,15 @@ class UUIDCorrelationSyncEngine:
             deleted_events = self._detect_deleted_events(calendar, google_events)
             if deleted_events:
                 logger.info(f"🗑️ Found {len(deleted_events)} deleted events - cleaning up busy blocks")
+                
+                # Enhanced logging for user visibility
+                for deleted_event in deleted_events:
+                    print(
+                        f"STDERR [{timezone.now().isoformat()}]: 🗑️ DELETED: {deleted_event.title or 'Untitled Event'}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                
                 self._cleanup_deleted_events(deleted_events)
                 self.sync_results["events_deleted"] = len(deleted_events)
             
@@ -438,9 +448,14 @@ class UUIDCorrelationSyncEngine:
                     deleted_event.updated_at = timezone.now()
                     deleted_event.save(update_fields=['status', 'updated_at'])
                     
-                    logger.info(
-                        f"✅ Cleaned up deleted event {deleted_event.title}: "
-                        f"marked {busy_blocks_updated} busy blocks as deleted"
+                    cleanup_msg = f"✅ Cleaned up deleted event {deleted_event.title}: marked {busy_blocks_updated} busy blocks as deleted"
+                    logger.info(cleanup_msg)
+                    
+                    # Enhanced visibility for cleanup completion
+                    print(
+                        f"STDERR [{timezone.now().isoformat()}]: {cleanup_msg}",
+                        file=sys.stderr,
+                        flush=True,
                     )
                     
             except Exception as e:
