@@ -144,4 +144,6 @@ class CalendarToggleTest(TestCase):
 
         # After toggle, calendar was enabled->disabled, so status should show "Disabled"
         self.assertContains(response, "Disabled")  # Status should be disabled
-        self.assertContains(response, "status-disabled")  # CSS class for disabled status
+        self.assertContains(
+            response, "status-disabled"
+        )  # CSS class for disabled status

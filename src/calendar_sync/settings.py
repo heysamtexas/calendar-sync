@@ -48,19 +48,21 @@ WEBHOOK_BASE_URL = env("WEBHOOK_BASE_URL", default="http://localhost:8000")
 # Django 4.0+ requires trusted origins for external POST requests
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
-    for origin in env("CSRF_TRUSTED_ORIGINS", default="http://localhost:8000,https://localhost:8000").split(",")
+    for origin in env(
+        "CSRF_TRUSTED_ORIGINS", default="http://localhost:8000,https://localhost:8000"
+    ).split(",")
     if origin.strip()
 ]
 
 # HTTPS Configuration for production
 # Force HTTPS detection when behind reverse proxy/load balancer
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_TLS = env("USE_TLS", default=not DEBUG)
 
 # Force HTTPS in production
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition

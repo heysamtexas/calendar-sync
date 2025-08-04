@@ -306,16 +306,16 @@ class Calendar(models.Model):
 
     # Webhook fields (Guilfoyle's minimalist approach - no separate model)
     webhook_channel_id = models.CharField(
-        max_length=100, blank=True, null=True,
-        help_text="Google webhook channel ID for this calendar"
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Google webhook channel ID for this calendar",
     )
     webhook_expires_at = models.DateTimeField(
-        null=True, blank=True,
-        help_text="When the webhook subscription expires"
+        null=True, blank=True, help_text="When the webhook subscription expires"
     )
     webhook_last_setup = models.DateTimeField(
-        null=True, blank=True,
-        help_text="When webhook was last registered with Google"
+        null=True, blank=True, help_text="When webhook was last registered with Google"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -450,13 +450,19 @@ class Calendar(models.Model):
         self.webhook_channel_id = channel_id
         self.webhook_expires_at = expires_at
         self.webhook_last_setup = timezone.now()
-        self.save(update_fields=['webhook_channel_id', 'webhook_expires_at', 'webhook_last_setup'])
+        self.save(
+            update_fields=[
+                "webhook_channel_id",
+                "webhook_expires_at",
+                "webhook_last_setup",
+            ]
+        )
 
     def clear_webhook_info(self):
         """Clear webhook information when webhook is deactivated"""
         self.webhook_channel_id = None
         self.webhook_expires_at = None
-        self.save(update_fields=['webhook_channel_id', 'webhook_expires_at'])
+        self.save(update_fields=["webhook_channel_id", "webhook_expires_at"])
 
     def get_webhook_status(self):
         """Get human-readable webhook status"""
@@ -470,7 +476,9 @@ class Calendar(models.Model):
             return "Webhook expired"
 
         if self.needs_webhook_renewal():
-            hours_left = int((self.webhook_expires_at - timezone.now()).total_seconds() / 3600)
+            hours_left = int(
+                (self.webhook_expires_at - timezone.now()).total_seconds() / 3600
+            )
             return f"Webhook expires in {hours_left} hours"
 
         return "Webhook active"

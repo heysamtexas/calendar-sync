@@ -125,13 +125,19 @@ class OAuthViewsTest(TestCase):
 
         # Mock OAuth2 and Calendar services
         mock_oauth2_service = MagicMock()
-        mock_oauth2_service.userinfo().get().execute.return_value = {"email": "test@gmail.com"}
-        
+        mock_oauth2_service.userinfo().get().execute.return_value = {
+            "email": "test@gmail.com"
+        }
+
         mock_calendar_service = MagicMock()
         mock_calendar_list = {"items": [{"id": "primary", "summary": "test@gmail.com"}]}
-        mock_calendar_service.calendarList().list().execute.return_value = mock_calendar_list
-        mock_calendar_service.settings().get().execute.return_value = {"value": "test@gmail.com"}
-        
+        mock_calendar_service.calendarList().list().execute.return_value = (
+            mock_calendar_list
+        )
+        mock_calendar_service.settings().get().execute.return_value = {
+            "value": "test@gmail.com"
+        }
+
         # Mock build to return appropriate service based on API
         def mock_build_side_effect(api_name, api_version, credentials=None):
             if api_name == "oauth2":
@@ -139,7 +145,7 @@ class OAuthViewsTest(TestCase):
             elif api_name == "calendar":
                 return mock_calendar_service
             return MagicMock()
-        
+
         mock_build.side_effect = mock_build_side_effect
 
         # Login user

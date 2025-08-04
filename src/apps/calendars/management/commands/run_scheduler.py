@@ -73,12 +73,16 @@ class Command(BaseCommand):
         )
 
         if self.dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN MODE - No tasks will be executed"))
+            self.stdout.write(
+                self.style.WARNING("DRY RUN MODE - No tasks will be executed")
+            )
             return
 
         try:
             # Start scheduler threads
-            self._start_scheduler_threads(sync_interval, token_interval, validation_interval)
+            self._start_scheduler_threads(
+                sync_interval, token_interval, validation_interval
+            )
 
             # Main loop - keep the process alive
             while self.running:
@@ -90,14 +94,16 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Scheduler error: {e}"))
             self._shutdown()
 
-    def _start_scheduler_threads(self, sync_interval, token_interval, validation_interval):
+    def _start_scheduler_threads(
+        self, sync_interval, token_interval, validation_interval
+    ):
         """Start all scheduler threads"""
 
         # Calendar sync thread
         sync_thread = threading.Thread(
             target=self._run_periodic_task,
             args=("sync_calendars", sync_interval, "Calendar Sync"),
-            daemon=True
+            daemon=True,
         )
         sync_thread.start()
         self.threads.append(sync_thread)
@@ -106,7 +112,7 @@ class Command(BaseCommand):
         token_thread = threading.Thread(
             target=self._run_periodic_task,
             args=("refresh_tokens", token_interval, "Token Refresh", ["--background"]),
-            daemon=True
+            daemon=True,
         )
         token_thread.start()
         self.threads.append(token_thread)
@@ -115,7 +121,7 @@ class Command(BaseCommand):
         validation_thread = threading.Thread(
             target=self._run_periodic_task,
             args=("refresh_tokens", validation_interval, "Token Validation", []),
-            daemon=True
+            daemon=True,
         )
         validation_thread.start()
         self.threads.append(validation_thread)
@@ -141,7 +147,9 @@ class Command(BaseCommand):
 
                     if self.verbose:
                         self.stdout.write(
-                            self.style.SUCCESS(f"[{datetime.now()}] {task_name} completed")
+                            self.style.SUCCESS(
+                                f"[{datetime.now()}] {task_name} completed"
+                            )
                         )
 
                     last_run = current_time

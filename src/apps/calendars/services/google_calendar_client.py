@@ -38,7 +38,9 @@ class GoogleCalendarClient:
 
         return self._service
 
-    def _execute_with_rate_limiting(self, request, operation_name: str, max_retries: int = 3):
+    def _execute_with_rate_limiting(
+        self, request, operation_name: str, max_retries: int = 3
+    ):
         """Execute API request with exponential backoff rate limiting"""
         base_delay = 3  # Start with 3 second delay
 
@@ -46,14 +48,20 @@ class GoogleCalendarClient:
             try:
                 return request.execute()
             except HttpError as e:
-                if e.resp.status == 403 and ('rateLimitExceeded' in str(e) or 'quotaExceeded' in str(e)):
+                if e.resp.status == 403 and (
+                    "rateLimitExceeded" in str(e) or "quotaExceeded" in str(e)
+                ):
                     if attempt < max_retries:
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warning(f"Rate limit hit for {operation_name}, retrying in {delay}s (attempt {attempt + 1}/{max_retries + 1})")
+                        delay = base_delay * (2**attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Rate limit hit for {operation_name}, retrying in {delay}s (attempt {attempt + 1}/{max_retries + 1})"
+                        )
                         time.sleep(delay)
                         continue
                     else:
-                        logger.error(f"Rate limit exceeded after {max_retries} retries for {operation_name}")
+                        logger.error(
+                            f"Rate limit exceeded after {max_retries} retries for {operation_name}"
+                        )
                         raise
                 else:
                     # Non-rate-limit error, re-raise immediately
@@ -70,7 +78,9 @@ class GoogleCalendarClient:
         try:
             service = self._get_service()
             request = service.calendarList().list()
-            calendar_list = self._execute_with_rate_limiting(request, f"list_calendars for {self.account.email}")
+            calendar_list = self._execute_with_rate_limiting(
+                request, f"list_calendars for {self.account.email}"
+            )
             return calendar_list.get("items", [])
 
         except HttpError as e:
@@ -87,7 +97,9 @@ class GoogleCalendarClient:
         try:
             service = self._get_service()
             request = service.calendars().get(calendarId=calendar_id)
-            calendar = self._execute_with_rate_limiting(request, f"get_calendar {calendar_id}")
+            calendar = self._execute_with_rate_limiting(
+                request, f"get_calendar {calendar_id}"
+            )
             return calendar
 
         except HttpError as e:
@@ -136,7 +148,9 @@ class GoogleCalendarClient:
                 orderBy="startTime",
             )
 
-            events_result = self._execute_with_rate_limiting(request, f"list_events for calendar {calendar_id}")
+            events_result = self._execute_with_rate_limiting(
+                request, f"list_events for calendar {calendar_id}"
+            )
             return events_result.get("items", [])
 
         except HttpError as e:
@@ -175,7 +189,9 @@ class GoogleCalendarClient:
         try:
             service = self._get_service()
             request = service.events().insert(calendarId=calendar_id, body=event_data)
-            event = self._execute_with_rate_limiting(request, f"create_event in calendar {calendar_id}")
+            event = self._execute_with_rate_limiting(
+                request, f"create_event in calendar {calendar_id}"
+            )
             logger.info(f"Created event {event['id']} in calendar {calendar_id}")
             return event
 
@@ -183,15 +199,21 @@ class GoogleCalendarClient:
             logger.error(f"Failed to create event in calendar {calendar_id}: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error creating event in calendar {calendar_id}: {e}")
+            logger.error(
+                f"Unexpected error creating event in calendar {calendar_id}: {e}"
+            )
             raise
 
     def update_event(self, calendar_id: str, event_id: str, event_data: dict) -> dict:
         """Update an existing event"""
         try:
             service = self._get_service()
-            request = service.events().update(calendarId=calendar_id, eventId=event_id, body=event_data)
-            event = self._execute_with_rate_limiting(request, f"update_event {event_id}")
+            request = service.events().update(
+                calendarId=calendar_id, eventId=event_id, body=event_data
+            )
+            event = self._execute_with_rate_limiting(
+                request, f"update_event {event_id}"
+            )
             logger.info(f"Updated event {event_id} in calendar {calendar_id}")
             return event
 
@@ -310,13 +332,15 @@ class GoogleCalendarClient:
 
         return results
 
-    def setup_webhook(self, calendar_id: str, force_recreate: bool = False) -> dict | None:
+    def setup_webhook(
+        self, calendar_id: str, force_recreate: bool = False
+    ) -> dict | None:
         """
         Register webhook with Google Calendar for real-time notifications.
-        
+
         This is Guilfoyle's minimalist approach with cron-safe duplicate prevention.
         Reduces API calls by 95% without complex subscription management.
-        
+
         Args:
             calendar_id: Google Calendar ID
             force_recreate: Force webhook recreation even if valid one exists
@@ -333,19 +357,23 @@ class GoogleCalendarClient:
 
             # Check if webhook already exists and is still valid (cron-safe)
             if not force_recreate and calendar.has_active_webhook(buffer_hours=24):
-                logger.info(f"Webhook for calendar {calendar_id} still valid, skipping setup")
+                logger.info(
+                    f"Webhook for calendar {calendar_id} still valid, skipping setup"
+                )
                 return {
-                    'channel_id': calendar.webhook_channel_id,
-                    'webhook_url': f"{settings.WEBHOOK_BASE_URL}/webhooks/google/",
-                    'expires_at': calendar.webhook_expires_at,
-                    'skipped': True
+                    "channel_id": calendar.webhook_channel_id,
+                    "webhook_url": f"{settings.WEBHOOK_BASE_URL}/webhooks/google/",
+                    "expires_at": calendar.webhook_expires_at,
+                    "skipped": True,
                 }
 
             service = self._get_service()
 
             # Clean up old webhook if it exists (prevent duplicates)
             if calendar.webhook_channel_id:
-                self._cleanup_old_webhook(calendar.webhook_channel_id, calendar.google_calendar_id)
+                self._cleanup_old_webhook(
+                    calendar.webhook_channel_id, calendar.google_calendar_id
+                )
 
             # Generate unique channel ID
             channel_id = f"calendar-sync-{uuid.uuid4().hex[:8]}"
@@ -355,40 +383,45 @@ class GoogleCalendarClient:
 
             # Set expiration (Google allows max 7 days for calendar events)
             expiration_time = timezone.now() + timedelta(days=6)  # 6 days for safety
-            expiration_timestamp = int(expiration_time.timestamp() * 1000)  # Milliseconds
+            expiration_timestamp = int(
+                expiration_time.timestamp() * 1000
+            )  # Milliseconds
 
             # Create webhook subscription
             watch_request = {
-                'id': channel_id,
-                'type': 'web_hook',
-                'address': webhook_url,
-                'expiration': expiration_timestamp
+                "id": channel_id,
+                "type": "web_hook",
+                "address": webhook_url,
+                "expiration": expiration_timestamp,
             }
 
-            request = service.events().watch(
-                calendarId=calendar_id,
-                body=watch_request
+            request = service.events().watch(calendarId=calendar_id, body=watch_request)
+            response = self._execute_with_rate_limiting(
+                request, f"setup_webhook for calendar {calendar_id}"
             )
-            response = self._execute_with_rate_limiting(request, f"setup_webhook for calendar {calendar_id}")
 
             # Store webhook info in database (enables cron-safe behavior)
             calendar.update_webhook_info(channel_id, expiration_time)
 
-            logger.info(f"Created webhook for calendar {calendar_id} with channel {channel_id}")
+            logger.info(
+                f"Created webhook for calendar {calendar_id} with channel {channel_id}"
+            )
 
             return {
-                'channel_id': channel_id,
-                'webhook_url': webhook_url,
-                'expires_at': expiration_time,
-                'resource_id': response.get('resourceId'),
-                'resource_uri': response.get('resourceUri')
+                "channel_id": channel_id,
+                "webhook_url": webhook_url,
+                "expires_at": expiration_time,
+                "resource_id": response.get("resourceId"),
+                "resource_uri": response.get("resourceUri"),
             }
 
         except HttpError as e:
             logger.error(f"Failed to setup webhook for calendar {calendar_id}: {e}")
             return None
         except Exception as e:
-            logger.error(f"Unexpected error setting up webhook for calendar {calendar_id}: {e}")
+            logger.error(
+                f"Unexpected error setting up webhook for calendar {calendar_id}: {e}"
+            )
             return None
 
     def _cleanup_old_webhook(self, old_channel_id: str, calendar_id: str):
@@ -398,12 +431,14 @@ class GoogleCalendarClient:
 
             # Stop the old webhook channel
             stop_request = {
-                'id': old_channel_id,
-                'resourceId': calendar_id  # Use calendar_id as resource fallback
+                "id": old_channel_id,
+                "resourceId": calendar_id,  # Use calendar_id as resource fallback
             }
 
             request = service.channels().stop(body=stop_request)
-            self._execute_with_rate_limiting(request, f"cleanup_webhook {old_channel_id}")
+            self._execute_with_rate_limiting(
+                request, f"cleanup_webhook {old_channel_id}"
+            )
             logger.info(f"Cleaned up old webhook channel {old_channel_id}")
 
         except HttpError as e:

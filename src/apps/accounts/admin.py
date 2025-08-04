@@ -12,6 +12,7 @@ class CalendarUserAdmin(BaseUserAdmin):
 
     def get_calendar_accounts(self, obj):
         from apps.calendars.models import CalendarAccount
+
         accounts = CalendarAccount.objects.filter(user=obj)
         if accounts.exists():
             account_list = []
@@ -20,29 +21,32 @@ class CalendarUserAdmin(BaseUserAdmin):
                 account_list.append(f"{account.email} ({status})")
             return format_html("<br>".join(account_list))
         return "No calendar accounts"
-    get_calendar_accounts.short_description = 'Calendar Accounts'
+
+    get_calendar_accounts.short_description = "Calendar Accounts"
 
     def get_sync_enabled_calendars(self, obj):
         from apps.calendars.models import Calendar
+
         calendars = Calendar.objects.filter(
-            calendar_account__user=obj,
-            sync_enabled=True
+            calendar_account__user=obj, sync_enabled=True
         )
         return calendars.count()
-    get_sync_enabled_calendars.short_description = 'Sync-Enabled Calendars'
+
+    get_sync_enabled_calendars.short_description = "Sync-Enabled Calendars"
 
     # Add calendar info to the user list view
-    list_display = BaseUserAdmin.list_display + ('get_sync_enabled_calendars',)
+    list_display = BaseUserAdmin.list_display + ("get_sync_enabled_calendars",)
 
     # Add calendar info to the user detail view
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Calendar Sync Info', {
-            'fields': ('get_calendar_accounts',),
-            'classes': ('collapse',)
-        }),
+        (
+            "Calendar Sync Info",
+            {"fields": ("get_calendar_accounts",), "classes": ("collapse",)},
+        ),
     )
 
-    readonly_fields = BaseUserAdmin.readonly_fields + ('get_calendar_accounts',)
+    readonly_fields = BaseUserAdmin.readonly_fields + ("get_calendar_accounts",)
+
 
 # Unregister the default User admin and register our enhanced version
 admin.site.unregister(User)

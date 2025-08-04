@@ -134,5 +134,3 @@ def global_manual_sync(request: HttpRequest) -> HttpResponse:
         logger.error(f"Global manual sync failed: {e}")
         messages.error(request, "Sync failed. Please try again or check the logs.")
         return redirect("dashboard:index")
-
-

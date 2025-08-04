@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 import logging
+import sys
 
 from django.utils import timezone
 
@@ -158,25 +159,52 @@ class SyncEngine:
 
         try:
             # Fetch events from Google Calendar
+            sync_start = timezone.now()
+            print(
+                f"STDERR [{sync_start.isoformat()}]: 🔍 FETCHING events for {calendar.name} from Google",
+                file=sys.stderr,
+                flush=True,
+            )
+
             google_events = client.list_events(
                 calendar.google_calendar_id, time_min=time_min, time_max=time_max
+            )
+
+            fetch_duration = (timezone.now() - sync_start).total_seconds()
+            print(
+                f"STDERR [{timezone.now().isoformat()}]: 🔍 FETCHED {len(google_events)} events in {fetch_duration:.2f}s",
+                file=sys.stderr,
+                flush=True,
             )
 
             logger.info(f"Fetched {len(google_events)} events from Google Calendar")
 
             # Process each event
             events_processed = 0
+            events_created = 0
+            events_updated = 0
+
             for google_event in google_events:
                 try:
-                    self._process_google_event(calendar, google_event)
+                    action = self._process_google_event(calendar, google_event)
                     events_processed += 1
+                    if action == "created":
+                        events_created += 1
+                    elif action == "updated":
+                        events_updated += 1
                 except Exception as e:
                     logger.warning(
                         f"Failed to process event {google_event.get('id', 'unknown')}: {e}"
                     )
 
             # Clean up deleted events
-            self._cleanup_deleted_events(calendar, google_events)
+            deleted_count = self._cleanup_deleted_events(calendar, google_events)
+
+            print(
+                f"STDERR [{timezone.now().isoformat()}]: 📊 SYNC RESULTS: {events_created} created, {events_updated} updated, {deleted_count} deleted",
+                file=sys.stderr,
+                flush=True,
+            )
 
             # Log successful sync with proper completion timestamp
             sync_log = SyncLog.objects.create(
@@ -196,7 +224,7 @@ class SyncEngine:
         """Process a single Google Calendar event with decline filtering"""
         google_event_id = google_event.get("id")
         if not google_event_id:
-            return
+            return None
 
         # Skip system-created busy blocks (tagged with CalSync)
         summary = google_event.get("summary", "")
@@ -205,7 +233,7 @@ class SyncEngine:
         if BusyBlock.is_system_busy_block(summary) or BusyBlock.is_system_busy_block(
             description
         ):
-            return
+            return "skipped_system"
 
         # Extract event data including decline status
         event_data = self._extract_event_data(google_event)
@@ -213,7 +241,7 @@ class SyncEngine:
         # Skip declined meetings (privacy-first: don't sync declined invites)
         if event_data.get("user_declined", False):
             logger.debug(f"Skipping declined meeting: {event_data['title']}")
-            return
+            return "skipped_declined"
 
         # Remove user_declined from data (not stored in database)
         event_data_to_store = {
@@ -232,6 +260,7 @@ class SyncEngine:
                 f"Created new event: {event.title} (Meeting: {event.is_meeting_invite})"
             )
             self.sync_results["events_created"] += 1
+            return "created"
         # Update existing event if changed
         elif self._event_needs_update(event, event_data_to_store):
             for field, value in event_data_to_store.items():
@@ -241,6 +270,9 @@ class SyncEngine:
                 f"Updated event: {event.title} (Meeting: {event.is_meeting_invite})"
             )
             self.sync_results["events_updated"] += 1
+            return "updated"
+
+        return "unchanged"
 
     def _extract_event_data(self, google_event: dict) -> dict:
         """Extract event data from Google Calendar event with meeting invite detection"""
@@ -325,6 +357,8 @@ class SyncEngine:
             )
             deleted_events.delete()
             self.sync_results["events_deleted"] += deleted_count
+
+        return deleted_count
 
     def _create_cross_calendar_busy_blocks(self):
         """Create busy blocks across ALL sync-enabled calendars (global cross-account sync)"""

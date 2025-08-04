@@ -147,7 +147,10 @@ class TemplateAccessibilityTest(TestCase):
 
         # Should have accessible sync button with help text
         self.assertIn('aria-describedby="sync-help"', content)
-        self.assertIn("Manually trigger synchronization for all connected calendar accounts", content)
+        self.assertIn(
+            "Manually trigger synchronization for all connected calendar accounts",
+            content,
+        )
         self.assertIn("Sync All Calendars", content)
 
     def test_form_labels_accessibility(self):

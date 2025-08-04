@@ -44,7 +44,6 @@ class GoogleWebhookView(View):
         except:
             body = "binary data"
 
-        
         # Dump complete webhook payload to stderr for debugging
         timestamp = datetime.now().isoformat()
         webhook_dump = f"""
@@ -53,7 +52,7 @@ Timestamp: {timestamp}
 Channel ID: {channel_id}
 Resource ID: {calendar_id}
 Method: {request.method}
-Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
+Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
 
 === ALL HEADERS ===
 {dict(request.META)}
@@ -72,7 +71,7 @@ Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
 ===============================================================
 """
         print(webhook_dump, file=sys.stderr, flush=True)
-        
+
         logger.info(
             f"Webhook received - Channel: {channel_id}, Resource: {calendar_id}"
         )
@@ -90,16 +89,19 @@ Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
             )
             return HttpResponse(status=400)
 
+        # Extract message number for throttling
+        message_number = int(request.META.get("HTTP_X_GOOG_MESSAGE_NUMBER", 0))
+
         # Trigger sync for this specific calendar
-        self._trigger_sync(calendar_id, channel_id)
+        self._trigger_sync(calendar_id, channel_id, message_number)
 
         # Always return 200 - webhooks should never fail
         return HttpResponse(status=200)
 
-    def _trigger_sync(self, calendar_id, channel_id):
+    def _trigger_sync(self, calendar_id, channel_id, message_number):
         """Trigger existing sync logic for the calendar that changed"""
         logger.info(
-            f"Webhook triggered for calendar {calendar_id}, channel {channel_id}"
+            f"Webhook triggered for calendar {calendar_id}, channel {channel_id}, message {message_number}"
         )
 
         # Global sync coordination: Prevent conflicts between webhook and scheduled syncs
@@ -108,6 +110,35 @@ Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
         # Use calendar-based cache key (not operation-specific) for global coordination
         global_cache_key = f"calendar_sync_lock_{calendar_id}"
         webhook_cache_key = f"webhook_sync_{channel_id}"
+
+        # NEW: Webhook storm throttling - limit to max 1 webhook per calendar per minute
+        throttle_key = f"webhook_throttle_{calendar_id}"
+        last_webhook_data = cache.get(throttle_key)
+
+        if last_webhook_data:
+            last_message_num = last_webhook_data.get("message_number", 0)
+            current_message_num = message_number
+
+            # If message number hasn't significantly advanced, likely a webhook storm
+            if (
+                current_message_num - last_message_num < 10
+            ):  # Allow some normal activity
+                print(
+                    f"STDERR [{datetime.now().isoformat()}]: 🚫 WEBHOOK THROTTLE: Skipping storm webhook {current_message_num} (last: {last_message_num})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                logger.info(
+                    f"🚫 WEBHOOK THROTTLE: Ignoring webhook storm - message {current_message_num} too close to {last_message_num}"
+                )
+                return
+
+        # Store current webhook info for throttling
+        cache.set(
+            throttle_key,
+            {"message_number": message_number, "timestamp": datetime.now().isoformat()},
+            60,
+        )  # 1 minute throttle window
 
         # Check if ANY sync is already running for this calendar
         existing_lock = cache.get(global_cache_key)
@@ -126,7 +157,11 @@ Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
 
         # Set global sync lock to prevent scheduled syncs from interfering
         sync_timestamp = datetime.now().isoformat()
-        print(f"STDERR [{sync_timestamp}]: 🔒 ACQUIRING webhook sync lock for calendar {calendar_id}", file=sys.stderr, flush=True)
+        print(
+            f"STDERR [{sync_timestamp}]: 🔒 ACQUIRING webhook sync lock for calendar {calendar_id}",
+            file=sys.stderr,
+            flush=True,
+        )
         logger.info(
             f"🔒 SYNC COORDINATION: Acquiring webhook sync lock for calendar {calendar_id}"
         )
@@ -193,16 +228,26 @@ Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
 
             # Smart loop prevention: Check if recent events are system-created busy blocks
             # If so, skip cross-calendar operations to prevent loops
-            cross_calendar_decision = self._should_skip_cross_calendar_sync(sync_engine, calendar)
+            cross_calendar_decision = self._should_skip_cross_calendar_sync(
+                sync_engine, calendar
+            )
             decision_timestamp = datetime.now().isoformat()
-            
+
             if cross_calendar_decision:
-                print(f"STDERR [{decision_timestamp}]: ❌ SKIPPING cross-calendar sync - detected busy block webhook", file=sys.stderr, flush=True)
+                print(
+                    f"STDERR [{decision_timestamp}]: ❌ SKIPPING cross-calendar sync - detected busy block webhook",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 logger.info(
                     "Skipping cross-calendar busy block creation - detected busy block webhook (prevents cascading loops)"
                 )
             else:
-                print(f"STDERR [{decision_timestamp}]: ✅ PROCEEDING with cross-calendar sync - user event detected", file=sys.stderr, flush=True)
+                print(
+                    f"STDERR [{decision_timestamp}]: ✅ PROCEEDING with cross-calendar sync - user event detected",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 logger.info("Creating cross-calendar busy blocks - user event detected")
 
                 # Add delay to avoid rate limiting when processing multiple webhooks rapidly
@@ -233,7 +278,11 @@ Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
         finally:
             # Clear processing flags
             release_timestamp = datetime.now().isoformat()
-            print(f"STDERR [{release_timestamp}]: 🔒 RELEASING webhook sync lock for calendar {calendar_id}", file=sys.stderr, flush=True)
+            print(
+                f"STDERR [{release_timestamp}]: 🔒 RELEASING webhook sync lock for calendar {calendar_id}",
+                file=sys.stderr,
+                flush=True,
+            )
             logger.info(
                 f"🔒 SYNC COORDINATION: Releasing webhook sync lock for calendar {calendar_id}"
             )

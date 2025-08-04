@@ -53,7 +53,7 @@ class GlobalSyncTest(TestCase):
             "events_created": 5,
             "events_updated": 3,
             "busy_blocks_created": 1,
-            "errors": []
+            "errors": [],
         }
 
         # Test POST to global sync
@@ -77,7 +77,7 @@ class GlobalSyncTest(TestCase):
             "events_created": 0,
             "events_updated": 0,
             "busy_blocks_created": 0,
-            "errors": ["Some error occurred"]
+            "errors": ["Some error occurred"],
         }
 
         # Test POST to global sync
