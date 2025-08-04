@@ -54,23 +54,33 @@ class GoogleWebhookView(View):
             from apps.calendars.models import Calendar
             from apps.calendars.services.sync_engine import SyncEngine
             
-            # Find calendar by Google Calendar ID
+            # Find calendar by webhook channel ID (more reliable than resource ID)
             try:
                 calendar = Calendar.objects.get(
-                    google_calendar_id=calendar_id,
+                    webhook_channel_id=channel_id,
                     sync_enabled=True,
                     calendar_account__is_active=True
                 )
-                logger.info(f"Found calendar: {calendar.name} (ID: {calendar.id})")
+                logger.info(f"Found calendar by channel ID: {calendar.name} (ID: {calendar.id})")
             except Calendar.DoesNotExist:
-                logger.warning(f"Calendar not found: {calendar_id}")
-                # Check if calendar exists but isn't sync-enabled
+                logger.warning(f"Calendar not found for channel {channel_id}")
+                # Fallback: try to find by resource ID (Google Calendar ID)
                 try:
-                    inactive_calendar = Calendar.objects.get(google_calendar_id=calendar_id)
-                    logger.warning(f"Calendar {inactive_calendar.name} exists but sync_enabled={inactive_calendar.sync_enabled}, account_active={inactive_calendar.calendar_account.is_active}")
+                    calendar = Calendar.objects.get(
+                        google_calendar_id=calendar_id,
+                        sync_enabled=True,
+                        calendar_account__is_active=True
+                    )
+                    logger.info(f"Found calendar by resource ID fallback: {calendar.name} (ID: {calendar.id})")
                 except Calendar.DoesNotExist:
-                    logger.warning(f"Calendar {calendar_id} not found in database at all")
-                return
+                    logger.warning(f"Calendar not found by channel {channel_id} or resource {calendar_id}")
+                    # Check if calendar exists but isn't sync-enabled
+                    try:
+                        inactive_calendar = Calendar.objects.get(google_calendar_id=calendar_id)
+                        logger.warning(f"Calendar {inactive_calendar.name} exists but sync_enabled={inactive_calendar.sync_enabled}, account_active={inactive_calendar.calendar_account.is_active}")
+                    except Calendar.DoesNotExist:
+                        logger.warning(f"Calendar {calendar_id} not found in database at all")
+                    return
             
             # Use existing sync engine - sync the specific calendar that changed
             logger.info(f"Starting sync for calendar {calendar.name}")
