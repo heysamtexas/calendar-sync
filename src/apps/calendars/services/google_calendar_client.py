@@ -145,25 +145,44 @@ class GoogleCalendarClient:
             raise
 
     def create_event(self, calendar_id: str, event_data: dict) -> dict:
-        """Create a new event in the calendar"""
-        try:
-            service = self._get_service()
-            event = (
-                service.events()
-                .insert(calendarId=calendar_id, body=event_data)
-                .execute()
-            )
-            logger.info(f"Created event {event['id']} in calendar {calendar_id}")
-            return event
+        """Create a new event in the calendar with rate limiting handling"""
+        import time
+        
+        max_retries = 3
+        base_delay = 1  # Start with 1 second delay
+        
+        for attempt in range(max_retries + 1):
+            try:
+                service = self._get_service()
+                event = (
+                    service.events()
+                    .insert(calendarId=calendar_id, body=event_data)
+                    .execute()
+                )
+                logger.info(f"Created event {event['id']} in calendar {calendar_id}")
+                return event
 
-        except HttpError as e:
-            logger.error(f"Failed to create event in calendar {calendar_id}: {e}")
-            raise
-        except Exception as e:
-            logger.error(
-                f"Unexpected error creating event in calendar {calendar_id}: {e}"
-            )
-            raise
+            except HttpError as e:
+                if e.resp.status == 403 and 'rateLimitExceeded' in str(e):
+                    if attempt < max_retries:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Rate limit hit, retrying in {delay}s (attempt {attempt + 1}/{max_retries + 1})")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"Rate limit exceeded after {max_retries} retries for calendar {calendar_id}")
+                        raise
+                else:
+                    logger.error(f"Failed to create event in calendar {calendar_id}: {e}")
+                    raise
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error creating event in calendar {calendar_id}: {e}"
+                )
+                raise
+        
+        # This should never be reached, but just in case
+        raise Exception("Max retries exceeded")
 
     def update_event(self, calendar_id: str, event_id: str, event_data: dict) -> dict:
         """Update an existing event"""

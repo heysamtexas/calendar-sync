@@ -91,6 +91,11 @@ class GoogleWebhookView(View):
             # CRITICAL: Also trigger cross-calendar busy block creation
             # This ensures changes in one calendar create/update busy blocks in other calendars
             logger.info("Starting cross-calendar busy block creation")
+            
+            # Add small delay to avoid rate limiting when processing multiple webhooks rapidly
+            import time
+            time.sleep(0.5)  # 500ms delay to respect Google's rate limits
+            
             sync_engine._create_cross_calendar_busy_blocks()
             logger.info(f"Final sync results: {sync_engine.sync_results}")
             
