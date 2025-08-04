@@ -515,10 +515,14 @@ class GoogleCalendarClient:
         self,
         calendar_id: str,
         event_data: dict,
-        correlation_uuid: str
+        correlation_uuid: str,
+        skip_title_embedding: bool = False
     ) -> Optional[dict]:
         """
         Create event with UUID correlation using triple-redundancy embedding
+        
+        Args:
+            skip_title_embedding: If True, skip zero-width title embedding (for busy blocks)
         """
         try:
             from apps.calendars.utils import UUIDCorrelationUtils
@@ -526,7 +530,8 @@ class GoogleCalendarClient:
             # Embed UUID using triple-redundancy strategy
             enhanced_event_data = UUIDCorrelationUtils.embed_uuid_in_event(
                 event_data=event_data.copy(),
-                correlation_uuid=correlation_uuid
+                correlation_uuid=correlation_uuid,
+                skip_title_embedding=skip_title_embedding
             )
             
             service = self._get_service()

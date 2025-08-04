@@ -356,7 +356,8 @@ class UUIDCorrelationSyncEngine:
             created_event = client.create_event_with_uuid_correlation(
                 calendar_id=target_calendar.google_calendar_id,
                 event_data=event_data,
-                correlation_uuid=str(busy_block_state.uuid)
+                correlation_uuid=str(busy_block_state.uuid),
+                skip_title_embedding=True  # CRITICAL: Prevent UUID contamination in busy block titles
             )
             
             if created_event:

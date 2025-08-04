@@ -27,12 +27,16 @@ class UUIDCorrelationUtils:
     def embed_uuid_in_event(
         cls, 
         event_data: Dict[str, Any], 
-        correlation_uuid: str
+        correlation_uuid: str,
+        skip_title_embedding: bool = False
     ) -> Dict[str, Any]:
         """
         Embed UUID using triple-redundancy strategy
         
         Guilfoyle's approach: Three different methods so detection never fails
+        
+        Args:
+            skip_title_embedding: If True, skip zero-width title embedding (for busy blocks)
         """
         # Validate UUID format
         try:
@@ -46,8 +50,9 @@ class UUIDCorrelationUtils:
         # Method 2: HTML comment in description (backup 1)
         cls._embed_in_description(event_data, correlation_uuid)
         
-        # Method 3: Zero-width characters in title (backup 2)
-        cls._embed_in_title(event_data, correlation_uuid)
+        # Method 3: Zero-width characters in title (backup 2) - SKIP for busy blocks
+        if not skip_title_embedding:
+            cls._embed_in_title(event_data, correlation_uuid)
         
         return event_data
     
