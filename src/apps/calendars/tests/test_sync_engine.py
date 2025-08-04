@@ -475,3 +475,56 @@ class SyncEngineTest(TestCase):
             self.assertIn("CalSync [source:", busy_block.busy_block_tag)
             self.assertIn(":event", busy_block.busy_block_tag)
             self.assertIn("]", busy_block.busy_block_tag)
+
+    @patch("apps.calendars.services.sync_engine.GoogleCalendarClient")
+    def test_sync_creates_completed_sync_logs(self, mock_client_class):
+        """Test that sync operations create properly completed SyncLog entries"""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        
+        from apps.accounts.models import UserProfile
+        
+        profile, created = UserProfile.objects.get_or_create(
+            user=self.user, defaults={'sync_enabled': True}
+        )
+        if not created:
+            profile.sync_enabled = True
+            profile.save()
+
+        calendar = Calendar.objects.create(
+            calendar_account=self.account,
+            google_calendar_id="test_calendar_sync_log_id",
+            name="Test Sync Log Calendar",
+            sync_enabled=True,
+        )
+
+        # Mock successful Google Calendar API calls
+        mock_client.list_events.return_value = [
+            {
+                "id": "test_event_1",
+                "summary": "Test Event",
+                "start": {"dateTime": "2024-01-01T10:00:00Z"},
+                "end": {"dateTime": "2024-01-01T11:00:00Z"},
+                "status": "confirmed",
+            }
+        ]
+
+        engine = SyncEngine()
+        engine.sync_all_calendars()
+
+        # Verify a SyncLog was created
+        sync_logs = SyncLog.objects.filter(calendar_account=self.account)
+        self.assertGreaterEqual(sync_logs.count(), 1, "At least one sync log should be created")
+        
+        # Verify the sync log has proper completion data
+        successful_logs = sync_logs.filter(status="success")
+        self.assertGreaterEqual(successful_logs.count(), 1, "At least one successful sync log should exist")
+        
+        sync_log = successful_logs.first()
+        self.assertEqual(sync_log.status, "success")
+        self.assertIsNotNone(sync_log.completed_at, "Successful sync should have completed_at timestamp")
+        self.assertIsNotNone(sync_log.started_at, "Sync should have started_at timestamp")
+        
+        # Verify completed_at is after started_at
+        self.assertGreaterEqual(sync_log.completed_at, sync_log.started_at, 
+                               "completed_at should be after or equal to started_at")

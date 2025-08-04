@@ -55,14 +55,15 @@ class SyncEngine:
                 logger.error(error_msg)
                 self.sync_results["errors"].append(error_msg)
 
-                # Log sync error
-                SyncLog.objects.create(
+                # Log sync error with proper completion timestamp
+                sync_log = SyncLog.objects.create(
                     calendar_account=calendar.calendar_account,
                     sync_type="full",
-                    status="error",
-                    error_message=error_msg,
+                    status="in_progress",  # Create as in_progress first
                     events_processed=0,
                 )
+                # Mark as completed with error to set the completed_at timestamp
+                sync_log.mark_completed(status="error", error_message=error_msg)
 
         # Now create busy blocks across calendars
         self._create_cross_calendar_busy_blocks()
@@ -119,13 +120,15 @@ class SyncEngine:
             # Clean up deleted events
             self._cleanup_deleted_events(calendar, google_events)
 
-            # Log successful sync
-            SyncLog.objects.create(
+            # Log successful sync with proper completion timestamp
+            sync_log = SyncLog.objects.create(
                 calendar_account=calendar.calendar_account,
                 sync_type="incremental",
-                status="success",
+                status="in_progress",  # Create as in_progress first
                 events_processed=events_processed,
             )
+            # Mark as completed to set the completed_at timestamp
+            sync_log.mark_completed(status="success")
 
         except Exception as e:
             logger.error(f"Failed to sync calendar {calendar.name}: {e}")
