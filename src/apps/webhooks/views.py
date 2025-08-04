@@ -111,6 +111,25 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
         global_cache_key = f"calendar_sync_lock_{calendar_id}"
         webhook_cache_key = f"webhook_sync_{channel_id}"
 
+        # NEW: Enhanced CalSync busy block detection - Check if recent busy blocks were created
+        from apps.calendars.models import Event
+        from datetime import timedelta
+        from django.utils import timezone
+        recent_cutoff = timezone.now() - timedelta(minutes=2)
+        
+        # Check if we recently created CalSync busy blocks that might be triggering this webhook
+        recent_calsync_blocks = Event.objects.filter(
+            calendar__google_calendar_id=calendar_id,
+            created_at__gte=recent_cutoff,
+            is_busy_block=True,
+            description__contains="CalSync"
+        ).exists()
+        
+        if recent_calsync_blocks:
+            print(f"STDERR [{datetime.now().isoformat()}]: 🚫 CALSYNC WEBHOOK SKIP: Recent CalSync busy blocks detected for calendar {calendar_id} - likely cascade", file=sys.stderr, flush=True)
+            logger.info(f"🚫 CALSYNC WEBHOOK SKIP: Skipping webhook for {calendar_id} - recent CalSync busy blocks detected")
+            return
+
         # NEW: Webhook storm throttling - limit to max 1 webhook per calendar per minute
         throttle_key = f"webhook_throttle_{calendar_id}"
         last_webhook_data = cache.get(throttle_key)
@@ -291,12 +310,13 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
 
     def _should_skip_cross_calendar_sync(self, sync_engine, calendar):
         """
-        Smart loop prevention: Determine if we should skip cross-calendar sync
+        Enhanced smart loop prevention: Determine if we should skip cross-calendar sync
         to prevent cascading loops from busy block creation.
 
         Returns True if:
         - Recent sync results show only system busy blocks were processed
         - No new user events were found
+        - Recent events in calendar are mostly busy blocks (more aggressive detection)
         """
         try:
             # Check if the sync processed any real user events (not just busy blocks)
@@ -310,43 +330,48 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                 logger.debug("Test environment detected - allowing cross-calendar sync")
                 return False
 
-            # If events were created or updated, this indicates user activity -> allow cross-calendar sync
+            # ENHANCED: More aggressive busy block detection
+            from datetime import timedelta
+
+            from django.utils import timezone
+
+            from apps.calendars.models import Event
+
+            # Check recent events (last 3 minutes) to see if they're system busy blocks
+            recent_cutoff = timezone.now() - timedelta(minutes=3)
+            recent_events = Event.objects.filter(
+                calendar=calendar, created_at__gte=recent_cutoff
+            ).order_by("-created_at")[:10]  # Check more events
+
+            if recent_events.exists():
+                # Count how many recent events are system busy blocks
+                busy_block_count = sum(1 for event in recent_events if event.is_busy_block)
+                total_count = len(recent_events)
+
+                # ENHANCED: If more than 50% of recent events are busy blocks, likely a busy block webhook
+                if total_count > 0 and (busy_block_count / total_count) > 0.5:
+                    print(f"STDERR [{datetime.now().isoformat()}]: 🚫 BUSY BLOCK DETECTION: {busy_block_count}/{total_count} recent events are busy blocks", file=sys.stderr, flush=True)
+                    logger.debug(
+                        f"Detected mostly busy blocks in recent events ({busy_block_count}/{total_count}) - skipping cross-calendar sync"
+                    )
+                    return True
+
+                # ENHANCED: Check if ANY recent events are CalSync busy blocks (system created)
+                for event in recent_events:
+                    if event.is_busy_block and ("CalSync" in event.description or "CalSync" in event.title):
+                        print(f"STDERR [{datetime.now().isoformat()}]: 🚫 CALSYNC DETECTION: Found recent CalSync busy block '{event.title}' - preventing cascade", file=sys.stderr, flush=True)
+                        logger.debug(f"Found recent CalSync busy block '{event.title}' - preventing cascade")
+                        return True
+
+            # If events were created or updated AND they don't seem to be system busy blocks, allow cross-calendar sync
             if events_created > 0 or events_updated > 0:
                 logger.debug(
                     f"User events detected (created: {events_created}, updated: {events_updated}) - allowing cross-calendar sync"
                 )
                 return False
 
-            # Additional check: Look at recent events in the calendar to see if they're mostly busy blocks
-            from apps.calendars.models import Event
-            from django.utils import timezone
-            from datetime import timedelta
-
-            # Check recent events (last 5 minutes) to see if they're system busy blocks
-            recent_cutoff = timezone.now() - timedelta(minutes=5)
-            recent_events = Event.objects.filter(
-                calendar=calendar, created_at__gte=recent_cutoff
-            ).order_by("-created_at")[:5]
-
-            if not recent_events.exists():
-                # No recent events, safe to do cross-calendar sync
-                logger.debug("No recent events found - allowing cross-calendar sync")
-                return False
-
-            # Count how many recent events are system busy blocks
-            busy_block_count = sum(1 for event in recent_events if event.is_busy_block)
-            total_count = len(recent_events)
-
-            # If more than 80% of recent events are busy blocks, likely a busy block webhook
-            if total_count > 0 and (busy_block_count / total_count) > 0.8:
-                logger.debug(
-                    f"Detected mostly busy blocks in recent events ({busy_block_count}/{total_count}) - skipping cross-calendar sync"
-                )
-                return True
-
-            logger.debug(
-                f"Mixed events detected ({busy_block_count}/{total_count} busy blocks) - allowing cross-calendar sync"
-            )
+            # No recent events or unclear - allow cross-calendar sync (but this should be rare with enhanced detection)
+            logger.debug("No clear busy block pattern detected - allowing cross-calendar sync")
             return False
 
         except Exception as e:
