@@ -30,9 +30,14 @@ class GoogleWebhookView(View):
         calendar_id = request.META.get('HTTP_X_GOOG_RESOURCE_ID')
         channel_id = request.META.get('HTTP_X_GOOG_CHANNEL_ID')
         
+        # Log all webhook headers for debugging
+        webhook_headers = {k: v for k, v in request.META.items() if k.startswith('HTTP_X_GOOG')}
+        logger.info(f"Webhook received - Channel: {channel_id}, Resource: {calendar_id}")
+        logger.debug(f"All webhook headers: {webhook_headers}")
+        
         # Basic validation - ensure required headers are present
         if not calendar_id or not channel_id:
-            logger.warning("Missing required Google webhook headers")
+            logger.warning(f"Missing required Google webhook headers. Resource ID: {calendar_id}, Channel ID: {channel_id}")
             return HttpResponse(status=400)
         
         # Trigger sync for this specific calendar
@@ -43,29 +48,43 @@ class GoogleWebhookView(View):
     
     def _trigger_sync(self, calendar_id):
         """Trigger existing sync logic for the calendar that changed"""
+        logger.info(f"Webhook triggered for calendar {calendar_id}")
+        
         try:
             from apps.calendars.models import Calendar
             from apps.calendars.services.sync_engine import SyncEngine
             
             # Find calendar by Google Calendar ID
-            calendar = Calendar.objects.get(
-                google_calendar_id=calendar_id,
-                sync_enabled=True,
-                calendar_account__is_active=True
-            )
+            try:
+                calendar = Calendar.objects.get(
+                    google_calendar_id=calendar_id,
+                    sync_enabled=True,
+                    calendar_account__is_active=True
+                )
+                logger.info(f"Found calendar: {calendar.name} (ID: {calendar.id})")
+            except Calendar.DoesNotExist:
+                logger.warning(f"Calendar not found: {calendar_id}")
+                # Check if calendar exists but isn't sync-enabled
+                try:
+                    inactive_calendar = Calendar.objects.get(google_calendar_id=calendar_id)
+                    logger.warning(f"Calendar {inactive_calendar.name} exists but sync_enabled={inactive_calendar.sync_enabled}, account_active={inactive_calendar.calendar_account.is_active}")
+                except Calendar.DoesNotExist:
+                    logger.warning(f"Calendar {calendar_id} not found in database at all")
+                return
             
             # Use existing sync engine - sync the specific calendar that changed
+            logger.info(f"Starting sync for calendar {calendar.name}")
             sync_engine = SyncEngine()
             results = sync_engine.sync_specific_calendar(calendar.id)
+            logger.info(f"Sync results: {results}")
             
             # CRITICAL: Also trigger cross-calendar busy block creation
             # This ensures changes in one calendar create/update busy blocks in other calendars
+            logger.info("Starting cross-calendar busy block creation")
             sync_engine._create_cross_calendar_busy_blocks()
+            logger.info(f"Final sync results: {sync_engine.sync_results}")
             
-            logger.info(f"Webhook triggered sync for calendar {calendar_id}: {results}")
-            
-        except Calendar.DoesNotExist:
-            logger.info(f"Webhook for unknown or inactive calendar: {calendar_id}")
         except Exception as e:
             logger.error(f"Webhook sync failed for {calendar_id}: {e}")
+            logger.exception("Full webhook sync error traceback:")
             # Fail silently - webhooks should never return errors to Google
