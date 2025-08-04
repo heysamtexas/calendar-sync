@@ -7,6 +7,18 @@
     <title>{% block title %}Calendar Sync Tool{% endblock %}</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <script>
+        // Initialize dark mode immediately to prevent flash
+        (function() {
+            const savedTheme = localStorage.getItem('darkMode');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const isDarkMode = savedTheme === 'enabled' || (savedTheme === null && systemPrefersDark);
+            
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark-mode');
+            }
+        })();
+    </script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="{% static 'js/app.js' %}"></script>
 </head>
@@ -22,6 +34,10 @@
                 {% else %}
                     <a href="{% url 'login' %}">Login</a>
                 {% endif %}
+                <button class="dark-mode-toggle" id="darkModeToggle" aria-label="Toggle dark mode">
+                    <span class="dark-mode-icon light" id="darkModeIcon"></span>
+                    <span class="sr-only">Dark mode</span>
+                </button>
             </nav>
         </div>
     </header>

@@ -1,5 +1,55 @@
+// Dark Mode Functionality
+function initializeDarkMode() {
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    const darkModeIcon = document.getElementById('darkModeIcon');
+    const html = document.documentElement;
+    
+    // Check for saved theme preference or default to system preference
+    const savedTheme = localStorage.getItem('darkMode');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    let isDarkMode = savedTheme === 'enabled' || (savedTheme === null && systemPrefersDark);
+    
+    // Apply initial theme
+    updateDarkMode(isDarkMode);
+    
+    // Toggle dark mode on button click
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', function() {
+            isDarkMode = !isDarkMode;
+            updateDarkMode(isDarkMode);
+            localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+        });
+    }
+    
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+        if (localStorage.getItem('darkMode') === null) {
+            isDarkMode = e.matches;
+            updateDarkMode(isDarkMode);
+        }
+    });
+    
+    function updateDarkMode(isDark) {
+        if (isDark) {
+            html.classList.add('dark-mode');
+            if (darkModeIcon) {
+                darkModeIcon.className = 'dark-mode-icon dark';
+            }
+        } else {
+            html.classList.remove('dark-mode');
+            if (darkModeIcon) {
+                darkModeIcon.className = 'dark-mode-icon light';
+            }
+        }
+    }
+}
+
 // HTMX Configuration and Event Handlers
 document.addEventListener('DOMContentLoaded', function() {
+    
+    // Initialize dark mode
+    initializeDarkMode();
     
     // Set dynamic calendar colors using CSS custom properties
     document.querySelectorAll('.calendar-color-badge[data-color]').forEach(function(badge) {
