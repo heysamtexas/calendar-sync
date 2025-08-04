@@ -41,14 +41,14 @@ class GoogleWebhookView(View):
             return HttpResponse(status=400)
         
         # Trigger sync for this specific calendar
-        self._trigger_sync(calendar_id)
+        self._trigger_sync(calendar_id, channel_id)
         
         # Always return 200 - webhooks should never fail
         return HttpResponse(status=200)
     
-    def _trigger_sync(self, calendar_id):
+    def _trigger_sync(self, calendar_id, channel_id):
         """Trigger existing sync logic for the calendar that changed"""
-        logger.info(f"Webhook triggered for calendar {calendar_id}")
+        logger.info(f"Webhook triggered for calendar {calendar_id}, channel {channel_id}")
         
         try:
             from apps.calendars.models import Calendar
