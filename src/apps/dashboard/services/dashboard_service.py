@@ -17,9 +17,10 @@ class DashboardService(BaseService):
         profile, created = UserProfile.objects.get_or_create(user=self.user)
 
         # Get calendar accounts with optimized queries
-        calendar_accounts = list(
+        calendar_accounts_queryset = (
             CalendarAccount.objects.filter(user=self.user)
             .select_related("user")
+            .prefetch_related("sync_logs")
             .annotate(
                 calendar_count=models.Count("calendars"),
                 active_calendar_count=models.Count(
@@ -28,6 +29,14 @@ class DashboardService(BaseService):
             )
             .order_by("email")
         )
+
+        # Convert to list and add last_sync for each account
+        calendar_accounts = []
+        for account in calendar_accounts_queryset:
+            # Get the last successful sync for this account
+            last_sync = account.get_last_successful_sync()
+            account.last_sync = last_sync.completed_at if last_sync else None
+            calendar_accounts.append(account)
 
         # Get recent sync logs
         recent_syncs = (
