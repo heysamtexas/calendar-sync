@@ -1,7 +1,8 @@
 /* Minimal CSS for Calendar Sync Tool MVP */
 
-:root {
-    /* Light theme colors */
+/* Light theme - default and explicit */
+:root,
+[data-theme="light"] {
     --bg-primary: #f8f9fa;
     --bg-secondary: #fff;
     --bg-tertiary: #f8f9fa;
@@ -29,39 +30,8 @@
     --shadow-dark: rgba(0, 0, 0, 0.2);
 }
 
-/* Dark theme colors */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-primary: #1a1a1a;
-        --bg-secondary: #2d2d2d;
-        --bg-tertiary: #1e1e1e;
-        --text-primary: #e9ecef;
-        --text-secondary: #adb5bd;
-        --text-muted: #868e96;
-        --border-color: #495057;
-        --border-light: #343a40;
-        --accent-primary: #4dabf7;
-        --accent-primary-hover: #339af0;
-        --success-bg: #1b4332;
-        --success-text: #d1e7dd;
-        --success-border: #2d5a3d;
-        --error-bg: #58151c;
-        --error-text: #f8d7da;
-        --error-border: #842029;
-        --warning-bg: #664d03;
-        --warning-text: #fff3cd;
-        --warning-border: #997404;
-        --danger-bg: #dc3545;
-        --danger-hover: #bb2d3b;
-        --toggle-bg: #198754;
-        --toggle-hover: #157347;
-        --shadow: rgba(0, 0, 0, 0.3);
-        --shadow-dark: rgba(0, 0, 0, 0.5);
-    }
-}
-
-/* Manual dark mode class override - only when .dark-mode class is present */
-html.dark-mode {
+/* Dark theme - only when explicitly set */
+[data-theme="dark"] {
     --bg-primary: #1a1a1a;
     --bg-secondary: #2d2d2d;
     --bg-tertiary: #1e1e1e;

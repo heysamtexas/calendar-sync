@@ -5,50 +5,57 @@ function initializeDarkMode() {
     const html = document.documentElement;
     
     // Check for saved theme preference or default to system preference
-    const savedTheme = localStorage.getItem('darkMode');
+    const savedTheme = localStorage.getItem('theme');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Default to light mode unless explicitly enabled
-    let isDarkMode = savedTheme === 'enabled' || (savedTheme === null && systemPrefersDark);
+    // Determine initial theme
+    let currentTheme;
+    if (savedTheme) {
+        currentTheme = savedTheme; // Use saved preference
+    } else if (systemPrefersDark) {
+        currentTheme = 'dark'; // Use system preference
+    } else {
+        currentTheme = 'light'; // Default to light
+    }
     
     // Apply initial theme
-    updateDarkMode(isDarkMode);
+    setTheme(currentTheme);
     
     // Toggle dark mode on button click
     if (darkModeToggle) {
         darkModeToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            isDarkMode = !isDarkMode;
-            updateDarkMode(isDarkMode);
-            localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+            
+            // Toggle theme
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(currentTheme);
+            
+            // Save user preference
+            localStorage.setItem('theme', currentTheme);
         });
     }
     
     // Listen for system theme changes
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
         // Only respond to system changes if user hasn't manually set a preference
-        if (localStorage.getItem('darkMode') === null) {
-            isDarkMode = e.matches;
-            updateDarkMode(isDarkMode);
+        if (!localStorage.getItem('theme')) {
+            currentTheme = e.matches ? 'dark' : 'light';
+            setTheme(currentTheme);
         }
     });
     
-    function updateDarkMode(isDark) {
-        if (isDark) {
-            html.classList.add('dark-mode');
-            if (darkModeIcon) {
-                darkModeIcon.className = 'dark-mode-icon dark';
-            }
-        } else {
-            html.classList.remove('dark-mode');
-            if (darkModeIcon) {
-                darkModeIcon.className = 'dark-mode-icon light';
-            }
+    function setTheme(theme) {
+        // Set data-theme attribute on html element
+        html.setAttribute('data-theme', theme);
+        
+        // Update icon
+        if (darkModeIcon) {
+            darkModeIcon.className = theme === 'dark' ? 'dark-mode-icon dark' : 'dark-mode-icon light';
         }
         
-        // Update the global isDarkMode variable for debugging
-        window.isDarkModeActive = isDark;
+        // Update global variable for debugging
+        window.currentTheme = theme;
     }
 }
 
