@@ -1,5 +1,69 @@
 # Webhook Strategy Overview - Architecture Implementation
 
+## 🤖 AI AGENT QUICK START
+
+> **Hey AI Agent!** 👋 This section is specifically designed for you.
+> 
+> **Your Mission**: Transform calendar sync from polling (26k API calls/day) to webhook-driven sync (95% reduction)
+> **Key Constraint**: NEVER mix webhook and polling sync for the same calendar  
+> **Success Criteria**: <2 minute calendar change propagation across all calendars
+> **Failure Protocol**: See [🚨 AI Agent Error Recovery](#🚨-ai-agent-error-recovery) below
+> 
+> **Next Action**: Jump to [🤖 AI Agent Implementation Protocol](#🤖-ai-agent-implementation-protocol)
+
+## 🤖 AI AGENT IMPLEMENTATION PROTOCOL
+
+> **Hey AI Agent!** 👋 These are YOUR mandatory instructions for reliable webhook implementation.
+
+### 🚨 CRITICAL CONSTRAINTS (AI Agents - Execute These Rules)
+- **NEVER** implement both webhook-driven sync and polling fallback simultaneously for the same calendar
+- **ALWAYS** validate webhook subscription exists and is healthy before processing notifications
+- **MANDATORY** implement fallback to polling fallback when webhook subscription failure_count > 5
+- **REQUIRED** log all webhook notification processing with structured format for monitoring
+
+### 🤖 AI AGENT DECISION TREE
+
+**AI Agent, follow this exact decision sequence:**
+
+```
+🔍 Step 1: Check Calendar Webhook Status
+├─ ✅ Active subscription exists AND healthy 
+│   └─➤ ACTION: Use webhook-driven sync
+├─ ⚠️ Active subscription exists BUT unhealthy
+│   └─➤ ACTION: Enable polling fallback AND attempt subscription repair  
+└─ ❌ No webhook subscription exists
+    └─➤ ACTION: Use polling fallback sync
+```
+
+**AI Agent Validation**: After each step, verify action completed successfully before proceeding.
+
+### ✅ AI AGENT IMPLEMENTATION CHECKLIST
+
+**AI Agent, verify these conditions before proceeding:**
+- [ ] Calendar has valid OAuth tokens: `calendar.calendar_account.is_token_valid()`
+- [ ] Webhook URL is accessible: `webhook_health_check()` returns 200
+- [ ] Database models exist: `WebhookSubscription` and `WebhookNotification` tables created
+- [ ] Subscription provider supported: Only 'google' currently implemented
+
+### 🚨 AI AGENT ERROR RECOVERY
+
+**AI Agent, when webhook subscription fails →** 
+- failure_count < 5: Retry webhook subscription creation
+- failure_count >= 5: Enable polling fallback, suspend webhook subscription
+- failure_count >= 10: Permanently disable webhook for calendar, full polling mode
+
+**AI Agent, when webhook notification processing fails →**
+- Validation error: Log error, return 400, do not retry
+- Processing error: Log error, increment failure_count, retry up to 3 times
+- Critical error: Enable polling fallback, alert administrators
+
+### 🔧 AI AGENT SYNC OPERATION STEPS
+
+**AI Agent, for each sync operation execute:**
+1. Record sync_type ('webhook'|'polling'|'full') in database for monitoring
+2. Update calendar.last_sync timestamp regardless of sync method
+3. Create cross-calendar busy blocks after successful sync
+
 ## Webhook Architecture Terminology
 
 **Essential Terms (Used Consistently Across All Documents):**
@@ -287,43 +351,6 @@ Reduction: (2,880 - 194) / 2,880 = 93.3% API call reduction
 - **Measurement**: CPU/memory usage during sync operations
 - **Timeline**: Measure improvement within 30 days
 
-## LLM Implementation Guidelines
-
-### Critical Constraints for AI Agents
-- **NEVER** implement both webhook-driven sync and polling fallback simultaneously for the same calendar
-- **ALWAYS** validate webhook subscription exists and is healthy before processing notifications
-- **MANDATORY** implement fallback to polling fallback when webhook subscription failure_count > 5
-- **REQUIRED** log all webhook notification processing with structured format for monitoring
-
-### Decision Tree for Sync Method Selection
-**Primary Decision Logic (AI Agents: Execute in This Order):**
-1. **Check Calendar Webhook Status**
-   - If active webhook subscription exists AND subscription is healthy → Use webhook-driven sync
-   - If active webhook subscription exists BUT subscription is unhealthy → Enable polling fallback AND attempt subscription repair
-   - If no webhook subscription exists → Use polling fallback sync
-
-2. **For Each Sync Operation**
-   - Record sync_type ('webhook'|'polling'|'full') in database for monitoring
-   - Update calendar.last_sync timestamp regardless of sync method
-   - Create cross-calendar busy blocks after successful sync
-
-### Implementation Validation Steps
-**MANDATORY CHECKS** (fail fast if not met):
-- [ ] Calendar has valid OAuth tokens: `calendar.calendar_account.is_token_valid()`
-- [ ] Webhook URL is accessible: `webhook_health_check()` returns 200
-- [ ] Database models exist: `WebhookSubscription` and `WebhookNotification` tables created
-- [ ] Subscription provider supported: Only 'google' currently implemented
-
-### Error Recovery Protocol
-**WHEN webhook subscription fails** → **THEN recovery action:**
-- failure_count < 5: Retry webhook subscription creation
-- failure_count >= 5: Enable polling fallback, suspend webhook subscription
-- failure_count >= 10: Permanently disable webhook for calendar, full polling mode
-
-**WHEN webhook notification processing fails** → **THEN recovery action:**
-- Validation error: Log error, return 400, do not retry
-- Processing error: Log error, increment failure_count, retry up to 3 times
-- Critical error: Enable polling fallback, alert administrators
 
 ## Strategic Recommendation
 

@@ -1,5 +1,86 @@
 # Database Infrastructure - Webhook Implementation
 
+## 🤖 AI AGENT QUICK START
+
+> **Hey AI Agent!** 👋 You're about to implement webhook database models.
+> 
+> **Your Mission**: Create database infrastructure for webhook subscriptions and notifications
+> **Key Models**: `WebhookSubscription` (tracks webhook channels) + `WebhookNotification` (logs incoming webhooks)
+> **Success Criteria**: Models support subscription lifecycle + health monitoring + notification processing
+> **Critical Fields**: See [🔧 AI Agent Essential Fields](#🔧-ai-agent-essential-fields) below
+> 
+> **Next Action**: Jump to [🤖 AI Agent Database Protocol](#🤖-ai-agent-database-protocol)
+
+## 🤖 AI AGENT DATABASE PROTOCOL
+
+> **Hey AI Agent!** 👋 These are YOUR database implementation instructions.
+
+### 🔧 AI AGENT ESSENTIAL FIELDS
+
+**AI Agent, these fields are MANDATORY for WebhookSubscription model:**
+
+#### 🚨 Core Required Fields (AI Agent: Include These)
+- `calendar`: ForeignKey to Calendar (MANDATORY - links subscription to specific calendar)
+- `provider`: Choice field ('google'|'microsoft') (MANDATORY - determines webhook provider)  
+- `subscription_id`: Unique provider identifier (MANDATORY - provider's webhook channel ID)
+- `expires_at`: Subscription expiration time (MANDATORY - when subscription becomes invalid)
+- `status`: Current subscription state (MANDATORY - 'active'|'expired'|'failed'|'suspended')
+
+#### 📊 Health Monitoring Fields (AI Agent: Update During Processing)
+- `last_notification_at`: Timestamp of last webhook received (update on each webhook)
+- `failure_count`: Consecutive processing failures (auto-increment on failure, reset on success)
+- `last_renewal_at`: When subscription was last renewed (update during renewal)
+
+### 🔧 AI AGENT PROCESSING COMMANDS
+
+**AI Agent, use these exact method calls:**
+
+```python
+# AI Agent: When webhook notification arrives
+subscription.mark_notification_received()  # Updates last_notification_at
+
+# AI Agent: When webhook processing fails  
+subscription.increment_failure_count()     # Tracks consecutive failures
+
+# AI Agent: When renewing subscription
+subscription.renew_subscription(new_expiry_datetime)  # Resets health metrics
+```
+
+### ✅ AI AGENT VALIDATION PROTOCOL
+
+**AI Agent, execute this validation BEFORE processing any webhook:**
+
+```python
+# AI Agent: Subscription health check sequence
+def validate_subscription_health(subscription):
+    # Check 1: Subscription not expired
+    if subscription.is_expired:
+        logger.warning("Subscription expired - cannot process")
+        return False
+        
+    # Check 2: Subscription not failing too much  
+    if subscription.failure_count >= 5:
+        logger.warning("Subscription unhealthy - enabling polling fallback")
+        enable_polling_fallback(subscription.calendar)
+        return False
+
+    # Check 3: Subscription is active
+    if subscription.status != 'active':
+        logger.warning("Subscription not active - cannot process")
+        return False
+    
+    return True  # Safe to process webhook
+```
+
+### 🤖 AI AGENT SUCCESS VALIDATION
+
+**AI Agent, verify these conditions after database setup:**
+- [ ] WebhookSubscription model created with all mandatory fields
+- [ ] WebhookNotification model created for logging incoming webhooks
+- [ ] Database migrations applied successfully: `python manage.py migrate`
+- [ ] Models can be imported: `from apps.webhooks.models import WebhookSubscription`
+- [ ] Foreign key relationships work: `subscription.calendar` returns Calendar instance
+
 ## Webhook Architecture Terminology Reference
 
 For consistent terminology across all documents, see [00-webhook-strategy-overview.md](00-webhook-strategy-overview.md#webhook-architecture-terminology).
@@ -138,45 +219,6 @@ class WebhookSubscription(models.Model):
         self.save(update_fields=['expires_at', 'last_renewal_at', 'status', 'failure_count'])
 ```
 
-### LLM WebhookSubscription Implementation Guide
-
-#### Core Purpose
-Tracks webhook subscriptions for calendar providers with lifecycle management and subscription health monitoring.
-
-#### Essential Fields (LLM: Required for all implementations)
-- `calendar`: ForeignKey to Calendar (MANDATORY - links subscription to specific calendar)
-- `provider`: Choice field ('google'|'microsoft') (MANDATORY - determines webhook provider)  
-- `subscription_id`: Unique provider identifier (MANDATORY - provider's webhook channel ID)
-- `expires_at`: Subscription expiration time (MANDATORY - when subscription becomes invalid)
-- `status`: Current subscription state (MANDATORY - 'active'|'expired'|'failed'|'suspended')
-
-#### Health Monitoring Fields (LLM: Update these during webhook notification processing)
-- `last_notification_at`: Timestamp of last webhook received (update on each webhook)
-- `failure_count`: Consecutive processing failures (auto-increment on failure, reset on success)
-- `last_renewal_at`: When subscription was last renewed (update during renewal)
-
-#### LLM Processing Rules
-**MANDATORY Actions During Webhook Processing:**
-1. **On webhook received**: Call `mark_notification_received()` to update health metrics
-2. **On processing failure**: Call `increment_failure_count()` to track failures
-3. **On subscription renewal**: Call `renew_subscription(new_expiry)` with new expiration date
-
-**REQUIRED Validation Before Using Subscription:**
-```python
-# Check subscription health before processing
-if subscription.is_expired:
-    # Don't process - subscription has expired
-    return False
-    
-if subscription.failure_count >= 5:
-    # Enable polling fallback - subscription is unhealthy
-    enable_polling_fallback(subscription.calendar)
-    return False
-
-if subscription.status != 'active':
-    # Don't process - subscription not active
-    return False
-```
 
 #### WebhookNotification Model
 ```python
