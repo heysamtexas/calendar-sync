@@ -6,6 +6,8 @@ Achieves 95% API call reduction without architectural over-engineering.
 """
 
 import logging
+import sys
+from datetime import datetime
 
 from django.http import HttpResponse
 from django.utils.decorators import method_decorator
@@ -42,6 +44,35 @@ class GoogleWebhookView(View):
         except:
             body = "binary data"
 
+        
+        # Dump complete webhook payload to stderr for debugging
+        timestamp = datetime.now().isoformat()
+        webhook_dump = f"""
+==================== WEBHOOK PAYLOAD DUMP ====================
+Timestamp: {timestamp}
+Channel ID: {channel_id}
+Resource ID: {calendar_id}
+Method: {request.method}
+Content-Type: {request.META.get('CONTENT_TYPE', 'not specified')}
+
+=== ALL HEADERS ===
+{dict(request.META)}
+
+=== GOOGLE WEBHOOK HEADERS ===
+{webhook_headers}
+
+=== BODY ===
+{body}
+
+=== REQUEST PATH ===
+{request.path}
+
+=== QUERY PARAMS ===
+{request.GET.dict()}
+===============================================================
+"""
+        print(webhook_dump, file=sys.stderr, flush=True)
+        
         logger.info(
             f"Webhook received - Channel: {channel_id}, Resource: {calendar_id}"
         )
@@ -94,6 +125,8 @@ class GoogleWebhookView(View):
             return
 
         # Set global sync lock to prevent scheduled syncs from interfering
+        sync_timestamp = datetime.now().isoformat()
+        print(f"STDERR [{sync_timestamp}]: 🔒 ACQUIRING webhook sync lock for calendar {calendar_id}", file=sys.stderr, flush=True)
         logger.info(
             f"🔒 SYNC COORDINATION: Acquiring webhook sync lock for calendar {calendar_id}"
         )
@@ -160,11 +193,16 @@ class GoogleWebhookView(View):
 
             # Smart loop prevention: Check if recent events are system-created busy blocks
             # If so, skip cross-calendar operations to prevent loops
-            if self._should_skip_cross_calendar_sync(sync_engine, calendar):
+            cross_calendar_decision = self._should_skip_cross_calendar_sync(sync_engine, calendar)
+            decision_timestamp = datetime.now().isoformat()
+            
+            if cross_calendar_decision:
+                print(f"STDERR [{decision_timestamp}]: ❌ SKIPPING cross-calendar sync - detected busy block webhook", file=sys.stderr, flush=True)
                 logger.info(
                     "Skipping cross-calendar busy block creation - detected busy block webhook (prevents cascading loops)"
                 )
             else:
+                print(f"STDERR [{decision_timestamp}]: ✅ PROCEEDING with cross-calendar sync - user event detected", file=sys.stderr, flush=True)
                 logger.info("Creating cross-calendar busy blocks - user event detected")
 
                 # Add delay to avoid rate limiting when processing multiple webhooks rapidly
@@ -194,6 +232,8 @@ class GoogleWebhookView(View):
             # Fail silently - webhooks should never return errors to Google
         finally:
             # Clear processing flags
+            release_timestamp = datetime.now().isoformat()
+            print(f"STDERR [{release_timestamp}]: 🔒 RELEASING webhook sync lock for calendar {calendar_id}", file=sys.stderr, flush=True)
             logger.info(
                 f"🔒 SYNC COORDINATION: Releasing webhook sync lock for calendar {calendar_id}"
             )
