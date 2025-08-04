@@ -63,6 +63,7 @@ class UUIDCorrelationSyncEngine:
             
             # Process each event with UUID correlation detection
             new_user_events = []
+            updated_user_events = []
             
             for google_event in google_events:
                 classification = self._classify_event_bulletproof(google_event, calendar)
@@ -78,6 +79,13 @@ class UUIDCorrelationSyncEngine:
                     self._mark_event_seen(classification['uuid'])
                     self.sync_results["our_events_skipped"] += 1
                     
+                elif classification['action'] == 'update_user_event':
+                    # Existing user event with changes - needs busy block updates
+                    updated_event = self._update_user_event_state(calendar, google_event, classification['uuid'])
+                    if updated_event:
+                        updated_user_events.append(updated_event)
+                        self.sync_results["user_events_updated"] = self.sync_results.get("user_events_updated", 0) + 1
+                    
                 elif classification['action'] == 'upgrade_legacy':
                     # Legacy event - upgrade to UUID correlation
                     self._upgrade_legacy_event(calendar, google_event)
@@ -89,6 +97,20 @@ class UUIDCorrelationSyncEngine:
             if new_user_events:
                 logger.info(f"🔒 Creating busy blocks for {len(new_user_events)} new user events")
                 self._create_busy_blocks_cascade_proof(new_user_events)
+            
+            # Update busy blocks for changed user events (cascade-proof)
+            if updated_user_events:
+                logger.info(f"🔄 Updating busy blocks for {len(updated_user_events)} changed user events")
+                
+                # Enhanced logging for user visibility
+                for updated_event in updated_user_events:
+                    print(
+                        f"STDERR [{timezone.now().isoformat()}]: 🔄 UPDATED: {updated_event.title or 'Untitled Event'}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                
+                self._update_busy_blocks_cascade_proof(updated_user_events)
             
             # CRITICAL: Check for deleted events and cleanup busy blocks
             deleted_events = self._detect_deleted_events(calendar, google_events)
@@ -147,11 +169,19 @@ class UUIDCorrelationSyncEngine:
                     'method': 'uuid_correlation'
                 }
             else:
-                return {
-                    'action': 'update_seen',
-                    'uuid': correlation_uuid,
-                    'method': 'uuid_correlation'
-                }
+                # Check if this user event has changes that need busy block updates
+                if self._has_user_event_changes(correlation_uuid, google_event):
+                    return {
+                        'action': 'update_user_event',
+                        'uuid': correlation_uuid,
+                        'method': 'uuid_correlation_update'
+                    }
+                else:
+                    return {
+                        'action': 'update_seen',
+                        'uuid': correlation_uuid,
+                        'method': 'uuid_correlation'
+                    }
         
         # Check for legacy events (transition period)
         if LegacyDetectionUtils.is_legacy_busy_block(google_event):
@@ -460,6 +490,149 @@ class UUIDCorrelationSyncEngine:
                     
             except Exception as e:
                 logger.error(f"Failed to cleanup deleted event {deleted_event.uuid}: {e}")
+    
+    def _has_user_event_changes(self, correlation_uuid: str, google_event: Dict[str, Any]) -> bool:
+        """
+        Check if user event has changes that require busy block updates
+        
+        YOLO: Detect time, duration, or title changes that need propagation
+        """
+        try:
+            # Get existing EventState
+            event_state = EventState.objects.by_uuid(correlation_uuid)
+            if not event_state or event_state.is_busy_block:
+                return False
+            
+            # Parse Google event times
+            google_start = self._parse_event_datetime(google_event.get('start'))
+            google_end = self._parse_event_datetime(google_event.get('end'))
+            google_title = google_event.get('summary', '')
+            
+            # Check for changes
+            changes = []
+            if event_state.start_time != google_start:
+                changes.append(f"start: {event_state.start_time} -> {google_start}")
+            if event_state.end_time != google_end:
+                changes.append(f"end: {event_state.end_time} -> {google_end}")
+            if event_state.title != google_title:
+                changes.append(f"title: '{event_state.title}' -> '{google_title}'")
+            
+            if changes:
+                logger.info(f"🔄 Event changes detected for {correlation_uuid}: {', '.join(changes)}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Failed to check event changes for {correlation_uuid}: {e}")
+            return False
+    
+    def _update_user_event_state(self, calendar: Calendar, google_event: Dict[str, Any], correlation_uuid: str) -> Optional[EventState]:
+        """
+        Update existing user event state with new data from Google
+        
+        YOLO: Keep our database in sync with Google Calendar changes
+        """
+        try:
+            with transaction.atomic():
+                # Get existing EventState
+                event_state = EventState.objects.by_uuid(correlation_uuid)
+                if not event_state:
+                    logger.warning(f"EventState not found for UUID {correlation_uuid}")
+                    return None
+                
+                # Update with new data
+                event_state.title = google_event.get('summary', '')
+                event_state.start_time = self._parse_event_datetime(google_event.get('start'))
+                event_state.end_time = self._parse_event_datetime(google_event.get('end'))
+                event_state.last_seen_at = timezone.now()
+                event_state.updated_at = timezone.now()
+                
+                event_state.save(update_fields=[
+                    'title', 'start_time', 'end_time', 'last_seen_at', 'updated_at'
+                ])
+                
+                logger.info(f"🔄 Updated user event state: {event_state.title}")
+                return event_state
+                
+        except Exception as e:
+            logger.error(f"Failed to update user event state {correlation_uuid}: {e}")
+            return None
+    
+    def _update_busy_blocks_cascade_proof(self, updated_user_events: List[EventState]):
+        """
+        Update busy blocks across calendars when source events change
+        
+        YOLO: Propagate time/duration changes to all related busy blocks
+        """
+        for updated_event in updated_user_events:
+            try:
+                # Find all busy blocks created from this source event
+                busy_blocks = EventState.objects.filter(
+                    source_uuid=updated_event.uuid,
+                    is_busy_block=True,
+                    status='SYNCED'
+                )
+                
+                logger.info(f"🔄 Updating {busy_blocks.count()} busy blocks for changed event {updated_event.title}")
+                
+                # Update each busy block
+                for busy_block in busy_blocks:
+                    self._update_single_busy_block(busy_block, updated_event)
+                    
+            except Exception as e:
+                logger.error(f"Failed to update busy blocks for {updated_event.uuid}: {e}")
+    
+    def _update_single_busy_block(self, busy_block: EventState, source_event: EventState):
+        """
+        Update single busy block to match source event changes
+        
+        YOLO: Sync time, duration, and title changes to Google Calendar
+        """
+        try:
+            with transaction.atomic():
+                # Update busy block database record first
+                busy_block.title = f"Busy - {source_event.title or 'Event'}"
+                busy_block.start_time = source_event.start_time
+                busy_block.end_time = source_event.end_time
+                busy_block.updated_at = timezone.now()
+                
+                busy_block.save(update_fields=[
+                    'title', 'start_time', 'end_time', 'updated_at'
+                ])
+                
+                # Update in Google Calendar
+                client = GoogleCalendarClient(busy_block.calendar.calendar_account)
+                
+                event_data = {
+                    'summary': busy_block.title,
+                    'description': f'Busy block for event from {source_event.calendar.name}',
+                    'start': self._format_event_datetime(source_event.start_time),
+                    'end': self._format_event_datetime(source_event.end_time),
+                    'transparency': 'opaque',
+                    'visibility': 'private',
+                }
+                
+                updated_event = client.update_event(
+                    busy_block.calendar.google_calendar_id,
+                    busy_block.google_event_id,
+                    event_data
+                )
+                
+                if updated_event:
+                    logger.info(f"🔄 Updated busy block in Google Calendar: {busy_block.google_event_id}")
+                    
+                    # Log completion
+                    print(
+                        f"STDERR [{timezone.now().isoformat()}]: ✅ Updated busy block in {busy_block.calendar.name}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                else:
+                    logger.error(f"Failed to update busy block in Google Calendar: {busy_block.google_event_id}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to update busy block {busy_block.uuid}: {e}")
 
 
 class YOLOWebhookHandler:
