@@ -52,6 +52,16 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# HTTPS Configuration for production
+# Force HTTPS detection when behind reverse proxy/load balancer
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_TLS = env("USE_TLS", default=not DEBUG)
+
+# Force HTTPS in production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
