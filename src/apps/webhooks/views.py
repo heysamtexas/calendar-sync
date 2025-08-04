@@ -30,10 +30,19 @@ class GoogleWebhookView(View):
         calendar_id = request.META.get('HTTP_X_GOOG_RESOURCE_ID')
         channel_id = request.META.get('HTTP_X_GOOG_CHANNEL_ID')
         
-        # Log all webhook headers for debugging
+        # Log all webhook headers and body for debugging
         webhook_headers = {k: v for k, v in request.META.items() if k.startswith('HTTP_X_GOOG')}
+        
+        try:
+            body = request.body.decode('utf-8') if request.body else 'empty'
+        except:
+            body = 'binary data'
+            
         logger.info(f"Webhook received - Channel: {channel_id}, Resource: {calendar_id}")
-        logger.debug(f"All webhook headers: {webhook_headers}")
+        logger.info(f"Webhook headers: {webhook_headers}")
+        logger.info(f"Webhook body: {body}")
+        logger.info(f"Request method: {request.method}")
+        logger.info(f"Content type: {request.META.get('CONTENT_TYPE', 'not specified')}")
         
         # Basic validation - ensure required headers are present
         if not calendar_id or not channel_id:
