@@ -278,15 +278,42 @@ class GoogleCalendarClient:
 
         return results
 
-    def setup_webhook(self, calendar_id: str) -> dict | None:
+    def setup_webhook(self, calendar_id: str, force_recreate: bool = False) -> dict | None:
         """
         Register webhook with Google Calendar for real-time notifications.
         
-        This is Guilfoyle's minimalist approach - one-time webhook setup
-        that reduces API calls by 95% without complex subscription management.
+        This is Guilfoyle's minimalist approach with cron-safe duplicate prevention.
+        Reduces API calls by 95% without complex subscription management.
+        
+        Args:
+            calendar_id: Google Calendar ID
+            force_recreate: Force webhook recreation even if valid one exists
         """
         try:
+            from apps.calendars.models import Calendar
+            
+            # Get calendar object to check existing webhook status
+            try:
+                calendar = Calendar.objects.get(google_calendar_id=calendar_id)
+            except Calendar.DoesNotExist:
+                logger.error(f"Calendar {calendar_id} not found in database")
+                return None
+            
+            # Check if webhook already exists and is still valid (cron-safe)
+            if not force_recreate and calendar.has_active_webhook(buffer_hours=24):
+                logger.info(f"Webhook for calendar {calendar_id} still valid, skipping setup")
+                return {
+                    'channel_id': calendar.webhook_channel_id,
+                    'webhook_url': f"{settings.WEBHOOK_BASE_URL}/webhooks/google/",
+                    'expires_at': calendar.webhook_expires_at,
+                    'skipped': True
+                }
+            
             service = self._get_service()
+            
+            # Clean up old webhook if it exists (prevent duplicates)
+            if calendar.webhook_channel_id:
+                self._cleanup_old_webhook(calendar.webhook_channel_id, calendar.google_calendar_id)
             
             # Generate unique channel ID
             channel_id = f"calendar-sync-{uuid.uuid4().hex[:8]}"
@@ -311,6 +338,9 @@ class GoogleCalendarClient:
                 body=watch_request
             ).execute()
             
+            # Store webhook info in database (enables cron-safe behavior)
+            calendar.update_webhook_info(channel_id, expiration_time)
+            
             logger.info(f"Created webhook for calendar {calendar_id} with channel {channel_id}")
             
             return {
@@ -327,6 +357,29 @@ class GoogleCalendarClient:
         except Exception as e:
             logger.error(f"Unexpected error setting up webhook for calendar {calendar_id}: {e}")
             return None
+    
+    def _cleanup_old_webhook(self, old_channel_id: str, calendar_id: str):
+        """Clean up old webhook subscription to prevent duplicates"""
+        try:
+            service = self._get_service()
+            
+            # Stop the old webhook channel
+            stop_request = {
+                'id': old_channel_id,
+                'resourceId': calendar_id  # Use calendar_id as resource fallback
+            }
+            
+            service.channels().stop(body=stop_request).execute()
+            logger.info(f"Cleaned up old webhook channel {old_channel_id}")
+            
+        except HttpError as e:
+            if e.resp.status == 404:
+                # Webhook already expired or deleted
+                logger.info(f"Old webhook channel {old_channel_id} already deleted")
+            else:
+                logger.warning(f"Failed to cleanup old webhook {old_channel_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Error cleaning up old webhook {old_channel_id}: {e}")
 
 
 def get_google_calendar_client(account: CalendarAccount) -> GoogleCalendarClient:
