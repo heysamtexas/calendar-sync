@@ -284,11 +284,13 @@ class LegacyDetectionUtils:
         Upgrade legacy event to UUID correlation system
         
         Adds UUID markers while preserving existing content
+        CRITICAL: Skip title embedding to prevent contamination
         """
         logger.info(f"Upgrading legacy event {google_event.get('id')} to UUID correlation")
 
-        # Use triple-redundancy embedding
+        # Use triple-redundancy embedding - SKIP title embedding to prevent contamination
         return UUIDCorrelationUtils.embed_uuid_in_event(
             event_data=google_event,
-            correlation_uuid=correlation_uuid
+            correlation_uuid=correlation_uuid,
+            skip_title_embedding=True  # CRITICAL: Never contaminate titles
         )

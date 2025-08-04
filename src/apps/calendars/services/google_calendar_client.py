@@ -555,6 +555,8 @@ class GoogleCalendarClient:
     ) -> dict | None:
         """
         Add UUID correlation to existing event using triple-redundancy
+        
+        CRITICAL: Always skip title embedding for user events to prevent contamination
         """
         try:
             from apps.calendars.utils import UUIDCorrelationUtils
@@ -565,10 +567,11 @@ class GoogleCalendarClient:
                 logger.warning(f"Cannot update event {google_event_id} - not found")
                 return None
 
-            # Add UUID correlation using triple-redundancy
+            # Add UUID correlation using triple-redundancy - SKIP title embedding for user events
             enhanced_event = UUIDCorrelationUtils.embed_uuid_in_event(
                 event_data=current_event,
-                correlation_uuid=correlation_uuid
+                correlation_uuid=correlation_uuid,
+                skip_title_embedding=True  # CRITICAL: Never contaminate user event titles
             )
 
             service = self._get_service()
