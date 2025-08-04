@@ -35,6 +35,7 @@ class UUIDCorrelationSyncEngine:
             "busy_blocks_created": 0,
             "our_events_skipped": 0,
             "legacy_events_upgraded": 0,
+            "events_deleted": 0,
             "errors": [],
         }
     
@@ -87,6 +88,13 @@ class UUIDCorrelationSyncEngine:
             if new_user_events:
                 logger.info(f"🔒 Creating busy blocks for {len(new_user_events)} new user events")
                 self._create_busy_blocks_cascade_proof(new_user_events)
+            
+            # CRITICAL: Check for deleted events and cleanup busy blocks
+            deleted_events = self._detect_deleted_events(calendar, google_events)
+            if deleted_events:
+                logger.info(f"🗑️ Found {len(deleted_events)} deleted events - cleaning up busy blocks")
+                self._cleanup_deleted_events(deleted_events)
+                self.sync_results["events_deleted"] = len(deleted_events)
             
             # Update stats
             self.sync_results["calendars_processed"] = 1
@@ -354,6 +362,89 @@ class UUIDCorrelationSyncEngine:
             'dateTime': dt.isoformat(),
             'timeZone': 'UTC',
         }
+    
+    def _detect_deleted_events(self, calendar: Calendar, google_events: List[Dict[str, Any]]) -> List[EventState]:
+        """
+        Detect events that exist in our database but are missing from Google Calendar
+        
+        YOLO: Find orphaned EventStates where user deleted the source event
+        """
+        try:
+            # Get all Google event IDs from the current sync
+            google_event_ids = set(event['id'] for event in google_events)
+            
+            # Find EventState records for this calendar that should exist in Google
+            existing_event_states = EventState.objects.filter(
+                calendar=calendar,
+                status='SYNCED',
+                is_busy_block=False,  # Only user events (source events)
+                google_event_id__isnull=False  # Must have Google event ID
+            )
+            
+            # Check which ones are missing from Google Calendar
+            deleted_events = []
+            for event_state in existing_event_states:
+                if event_state.google_event_id not in google_event_ids:
+                    # This event exists in our DB but not in Google = deleted by user
+                    deleted_events.append(event_state)
+                    logger.info(f"🗑️ Event deleted by user: {event_state.title} ({event_state.google_event_id})")
+            
+            return deleted_events
+            
+        except Exception as e:
+            logger.error(f"Failed to detect deleted events for {calendar.name}: {e}")
+            return []
+    
+    def _cleanup_deleted_events(self, deleted_events: List[EventState]):
+        """
+        Clean up deleted events and their associated busy blocks
+        
+        YOLO: When user deletes event, delete all related busy blocks across calendars
+        """
+        for deleted_event in deleted_events:
+            try:
+                with transaction.atomic():
+                    # Find all busy blocks created from this source event
+                    busy_blocks = EventState.objects.filter(
+                        source_uuid=deleted_event.uuid,
+                        is_busy_block=True,
+                        status='SYNCED'
+                    )
+                    
+                    # Delete busy blocks from Google Calendar first
+                    for busy_block in busy_blocks:
+                        if busy_block.google_event_id:
+                            try:
+                                client = GoogleCalendarClient(busy_block.calendar.calendar_account)
+                                success = client.delete_event(
+                                    busy_block.calendar.google_calendar_id,
+                                    busy_block.google_event_id
+                                )
+                                if success:
+                                    logger.info(f"🗑️ Deleted busy block from Google: {busy_block.google_event_id}")
+                                else:
+                                    logger.warning(f"⚠️ Failed to delete busy block from Google: {busy_block.google_event_id}")
+                            except Exception as e:
+                                logger.error(f"Error deleting busy block {busy_block.google_event_id}: {e}")
+                    
+                    # Mark busy blocks as deleted in our database
+                    busy_blocks_updated = busy_blocks.update(
+                        status='DELETED',
+                        updated_at=timezone.now()
+                    )
+                    
+                    # Mark source event as deleted
+                    deleted_event.status = 'DELETED'
+                    deleted_event.updated_at = timezone.now()
+                    deleted_event.save(update_fields=['status', 'updated_at'])
+                    
+                    logger.info(
+                        f"✅ Cleaned up deleted event {deleted_event.title}: "
+                        f"marked {busy_blocks_updated} busy blocks as deleted"
+                    )
+                    
+            except Exception as e:
+                logger.error(f"Failed to cleanup deleted event {deleted_event.uuid}: {e}")
 
 
 class YOLOWebhookHandler:
