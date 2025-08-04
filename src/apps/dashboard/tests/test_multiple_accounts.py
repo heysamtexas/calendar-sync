@@ -379,3 +379,59 @@ class MultipleAccountsTest(TestCase):
             content,
             "Dashboard should show 'Never' for accounts without successful sync history",
         )
+
+    def test_account_detail_shows_last_sync_times(self):
+        """Test that account detail page shows last sync times"""
+        from apps.dashboard.services import DashboardService
+
+        # Create additional sync logs with different statuses to test filtering
+        older_success = SyncLog.objects.create(
+            calendar_account=self.account1,
+            sync_type="incremental",
+            status="success",
+            events_processed=3,
+            completed_at=timezone.now() - timedelta(hours=2),
+        )
+
+        recent_failure = SyncLog.objects.create(
+            calendar_account=self.account1,
+            sync_type="manual",
+            status="error",
+            error_message="Test error",
+            completed_at=timezone.now() - timedelta(minutes=10),
+        )
+
+        # Test dashboard service directly
+        service = DashboardService(self.user)
+        account_data = service.get_account_detail_data(self.account1.id)
+        
+        account = account_data["account"]
+        
+        # Verify the account has last_sync attribute populated
+        self.assertTrue(hasattr(account, 'last_sync'), 
+                      f"Account {account.email} should have last_sync attribute")
+        self.assertIsNotNone(account.last_sync, 
+                           f"Account {account.email} should have a last sync time")
+        
+        # Verify it gets the successful sync, not the failed one
+        last_sync_obj = account.get_last_successful_sync()
+        self.assertIsNotNone(last_sync_obj)
+        self.assertEqual(account.last_sync, last_sync_obj.completed_at)
+
+        # Test the template rendering shows sync times instead of "Never"
+        self.client.login(username="testuser", password="testpass123")
+        response = self.client.get(reverse("dashboard:account_detail", args=[self.account1.id]))
+        content = response.content.decode()
+        
+        # Should not show "Never" for accounts with sync history
+        last_sync_section = content[content.find("Last Sync:"):content.find("Last Sync:") + 200]
+        self.assertNotIn("Never", last_sync_section, 
+                        "Account detail should not show 'Never' for accounts with sync history")
+        
+        # Should show some date/time format (look for common date patterns)
+        import re
+        # Look for date patterns like "Jan 01, 2024 12:34" or similar
+        date_pattern = r'\w{3}\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}'
+        date_matches = re.findall(date_pattern, last_sync_section)
+        self.assertGreater(len(date_matches), 0,
+                          "Account detail should show formatted sync timestamps")

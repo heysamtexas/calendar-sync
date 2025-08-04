@@ -75,6 +75,7 @@ class DashboardService(BaseService):
             # Get account with prefetched data
             account = (
                 CalendarAccount.objects.select_related("user")
+                .prefetch_related("sync_logs")
                 .prefetch_related(
                     models.Prefetch(
                         "calendars",
@@ -88,6 +89,10 @@ class DashboardService(BaseService):
                 )
                 .get(id=account_id, user=self.user)
             )
+            
+            # Add last_sync attribute for template compatibility
+            last_sync = account.get_last_successful_sync()
+            account.last_sync = last_sync.completed_at if last_sync else None
         except CalendarAccount.DoesNotExist:
             raise ResourceNotFoundError(f"Account {account_id} not found")
 
