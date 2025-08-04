@@ -54,9 +54,13 @@ class GoogleWebhookView(View):
                 calendar_account__is_active=True
             )
             
-            # Use existing sync engine - triggers single calendar sync + cross-calendar busy blocks
+            # Use existing sync engine - sync the specific calendar that changed
             sync_engine = SyncEngine()
             results = sync_engine.sync_specific_calendar(calendar.id)
+            
+            # CRITICAL: Also trigger cross-calendar busy block creation
+            # This ensures changes in one calendar create/update busy blocks in other calendars
+            sync_engine._create_cross_calendar_busy_blocks()
             
             logger.info(f"Webhook triggered sync for calendar {calendar_id}: {results}")
             
