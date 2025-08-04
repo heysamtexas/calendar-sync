@@ -3,7 +3,7 @@ UUID Correlation Utilities for Bulletproof Event Tracking
 
 Guilfoyle's triple-redundancy strategy:
 1. Primary: ExtendedProperties (most reliable)
-2. Backup 1: HTML comment in description (user-invisible)  
+2. Backup 1: HTML comment in description (user-invisible)
 3. Backup 2: Zero-width characters in title (invisible but detectable)
 """
 
@@ -20,22 +20,22 @@ class UUIDCorrelationUtils:
     """Triple-redundancy UUID utilities for bulletproof event detection"""
 
     # UUID patterns for different embedding methods
-    EXTENDED_PROPERTIES_KEY = 'calendar_bridge_uuid'
-    HTML_COMMENT_PATTERN = r'<!-- \[CB:([a-f0-9-]{36})\] -->'
-    ZERO_WIDTH_PATTERN = r'\u200B([a-f0-9-]{36})\u200B'
+    EXTENDED_PROPERTIES_KEY = "calendar_bridge_uuid"
+    HTML_COMMENT_PATTERN = r"<!-- \[CB:([a-f0-9-]{36})\] -->"
+    ZERO_WIDTH_PATTERN = r"\u200B([a-f0-9-]{36})\u200B"
 
     @classmethod
     def embed_uuid_in_event(
         cls,
         event_data: dict[str, Any],
         correlation_uuid: str,
-        skip_title_embedding: bool = False
+        skip_title_embedding: bool = False,
     ) -> dict[str, Any]:
         """
         Embed UUID using triple-redundancy strategy
-        
+
         Guilfoyle's approach: Three different methods so detection never fails
-        
+
         Args:
             skip_title_embedding: If True, skip zero-width title embedding (for busy blocks)
         """
@@ -58,45 +58,49 @@ class UUIDCorrelationUtils:
         return event_data
 
     @classmethod
-    def _embed_in_extended_properties(cls, event_data: dict[str, Any], correlation_uuid: str):
+    def _embed_in_extended_properties(
+        cls, event_data: dict[str, Any], correlation_uuid: str
+    ):
         """Embed UUID in ExtendedProperties (primary method)"""
-        if 'extendedProperties' not in event_data:
-            event_data['extendedProperties'] = {}
-        if 'private' not in event_data['extendedProperties']:
-            event_data['extendedProperties']['private'] = {}
+        if "extendedProperties" not in event_data:
+            event_data["extendedProperties"] = {}
+        if "private" not in event_data["extendedProperties"]:
+            event_data["extendedProperties"]["private"] = {}
 
-        event_data['extendedProperties']['private'][cls.EXTENDED_PROPERTIES_KEY] = correlation_uuid
+        event_data["extendedProperties"]["private"][cls.EXTENDED_PROPERTIES_KEY] = (
+            correlation_uuid
+        )
 
     @classmethod
     def _embed_in_description(cls, event_data: dict[str, Any], correlation_uuid: str):
         """Embed UUID in description as HTML comment (backup method 1)"""
-        description = event_data.get('description', '')
-        marker = f'<!-- [CB:{correlation_uuid}] -->'
+        description = event_data.get("description", "")
+        marker = f"<!-- [CB:{correlation_uuid}] -->"
 
         # Only add if not already present
         if marker not in description:
             # Add to end of description, separated by newline if description exists
             if description:
-                event_data['description'] = f"{description}\n{marker}"
+                event_data["description"] = f"{description}\n{marker}"
             else:
-                event_data['description'] = marker
+                event_data["description"] = marker
 
     @classmethod
     def _embed_in_title(cls, event_data: dict[str, Any], correlation_uuid: str):
         """Embed UUID using zero-width characters in title (backup method 2)"""
-        title = event_data.get('summary', '')
-        marker = f'\u200B{correlation_uuid}\u200B'  # Zero-width space markers
+        title = event_data.get("summary", "")
+        marker = f"\u200b{correlation_uuid}\u200b"  # Zero-width space markers
 
         # Only add if not already present
         if marker not in title:
             # Add at the end of title (invisible to users)
-            event_data['summary'] = f"{title}{marker}"
+            event_data["summary"] = f"{title}{marker}"
 
     @classmethod
     def extract_uuid_from_event(cls, google_event: dict[str, Any]) -> str | None:
         """
         Extract UUID using all three methods (try primary first, fallback to others)
-        
+
         Returns the first UUID found, or None if no UUID detected
         """
         # Method 1: Try ExtendedProperties first (most reliable)
@@ -120,11 +124,13 @@ class UUIDCorrelationUtils:
         return None
 
     @classmethod
-    def _extract_from_extended_properties(cls, google_event: dict[str, Any]) -> str | None:
+    def _extract_from_extended_properties(
+        cls, google_event: dict[str, Any]
+    ) -> str | None:
         """Extract UUID from ExtendedProperties"""
         try:
-            extended = google_event.get('extendedProperties', {})
-            private_props = extended.get('private', {})
+            extended = google_event.get("extendedProperties", {})
+            private_props = extended.get("private", {})
             correlation_uuid = private_props.get(cls.EXTENDED_PROPERTIES_KEY)
 
             if correlation_uuid:
@@ -139,7 +145,7 @@ class UUIDCorrelationUtils:
     def _extract_from_description(cls, google_event: dict[str, Any]) -> str | None:
         """Extract UUID from description HTML comment"""
         try:
-            description = google_event.get('description', '')
+            description = google_event.get("description", "")
             if description:
                 match = re.search(cls.HTML_COMMENT_PATTERN, description)
                 if match:
@@ -155,7 +161,7 @@ class UUIDCorrelationUtils:
     def _extract_from_title(cls, google_event: dict[str, Any]) -> str | None:
         """Extract UUID from title zero-width characters"""
         try:
-            title = google_event.get('summary', '')
+            title = google_event.get("summary", "")
             if title:
                 match = re.search(cls.ZERO_WIDTH_PATTERN, title)
                 if match:
@@ -171,7 +177,7 @@ class UUIDCorrelationUtils:
     def is_our_event(cls, google_event: dict[str, Any]) -> tuple[bool, str | None]:
         """
         Check if event belongs to us and return UUID
-        
+
         Returns (is_ours, uuid) tuple
         """
         correlation_uuid = cls.extract_uuid_from_event(google_event)
@@ -189,7 +195,9 @@ class UUIDCorrelationUtils:
             return is_ours, correlation_uuid
 
         except Exception as e:
-            logger.error(f"Error checking event ownership for UUID {correlation_uuid}: {e}")
+            logger.error(
+                f"Error checking event ownership for UUID {correlation_uuid}: {e}"
+            )
             return False, correlation_uuid
 
     @classmethod
@@ -199,7 +207,7 @@ class UUIDCorrelationUtils:
             return title
 
         # Remove zero-width characters and UUIDs
-        cleaned = re.sub(cls.ZERO_WIDTH_PATTERN, '', title)
+        cleaned = re.sub(cls.ZERO_WIDTH_PATTERN, "", title)
         return cleaned.strip()
 
     @classmethod
@@ -209,88 +217,44 @@ class UUIDCorrelationUtils:
             return description
 
         # Remove HTML comment markers
-        cleaned = re.sub(cls.HTML_COMMENT_PATTERN, '', description)
+        cleaned = re.sub(cls.HTML_COMMENT_PATTERN, "", description)
         return cleaned.strip()
 
     @classmethod
     def validate_event_integrity(cls, google_event: dict[str, Any]) -> dict[str, Any]:
         """
         Validate that all three UUID embedding methods are consistent
-        
+
         Returns validation report with any inconsistencies found
         """
         report = {
-            'consistent': True,
-            'primary_uuid': None,
-            'backup1_uuid': None,
-            'backup2_uuid': None,
-            'issues': []
+            "consistent": True,
+            "primary_uuid": None,
+            "backup1_uuid": None,
+            "backup2_uuid": None,
+            "issues": [],
         }
 
         # Extract from all three methods
-        report['primary_uuid'] = cls._extract_from_extended_properties(google_event)
-        report['backup1_uuid'] = cls._extract_from_description(google_event)
-        report['backup2_uuid'] = cls._extract_from_title(google_event)
+        report["primary_uuid"] = cls._extract_from_extended_properties(google_event)
+        report["backup1_uuid"] = cls._extract_from_description(google_event)
+        report["backup2_uuid"] = cls._extract_from_title(google_event)
 
         # Check for consistency
-        uuids = [
-            report['primary_uuid'],
-            report['backup1_uuid'],
-            report['backup2_uuid']
-        ]
-        unique_uuids = set(uuid for uuid in uuids if uuid is not None)
+        uuids = [report["primary_uuid"], report["backup1_uuid"], report["backup2_uuid"]]
+        unique_uuids = {uuid for uuid in uuids if uuid is not None}
 
         if len(unique_uuids) > 1:
-            report['consistent'] = False
-            report['issues'].append(f"Inconsistent UUIDs found: {unique_uuids}")
+            report["consistent"] = False
+            report["issues"].append(f"Inconsistent UUIDs found: {unique_uuids}")
 
         # Check for missing primary method
-        if not report['primary_uuid'] and (report['backup1_uuid'] or report['backup2_uuid']):
-            report['consistent'] = False
-            report['issues'].append("Primary UUID (ExtendedProperties) missing but backup methods present")
+        if not report["primary_uuid"] and (
+            report["backup1_uuid"] or report["backup2_uuid"]
+        ):
+            report["consistent"] = False
+            report["issues"].append(
+                "Primary UUID (ExtendedProperties) missing but backup methods present"
+            )
 
         return report
-
-
-class LegacyDetectionUtils:
-    """
-    Legacy text-based detection utilities for transition period
-    
-    Provides fallback detection for events created before UUID correlation
-    """
-
-    @classmethod
-    def is_legacy_busy_block(cls, google_event: dict[str, Any]) -> bool:
-        """Detect legacy busy blocks using old text-based patterns"""
-        title = google_event.get('summary', '')
-        description = google_event.get('description', '')
-
-        # Legacy patterns from old BusyBlock.is_system_busy_block()
-        legacy_patterns = [
-            'Busy - ',           # Clean title prefix
-            '🔒 Busy - ',       # Emoji prefix (if still present)
-            'CalSync [source:',  # Legacy description pattern
-        ]
-
-        for pattern in legacy_patterns:
-            if pattern in title or pattern in description:
-                return True
-
-        return False
-
-    @classmethod
-    def upgrade_legacy_event(cls, google_event: dict[str, Any], correlation_uuid: str) -> dict[str, Any]:
-        """
-        Upgrade legacy event to UUID correlation system
-        
-        Adds UUID markers while preserving existing content
-        CRITICAL: Skip title embedding to prevent contamination
-        """
-        logger.info(f"Upgrading legacy event {google_event.get('id')} to UUID correlation")
-
-        # Use triple-redundancy embedding - SKIP title embedding to prevent contamination
-        return UUIDCorrelationUtils.embed_uuid_in_event(
-            event_data=google_event,
-            correlation_uuid=correlation_uuid,
-            skip_title_embedding=True  # CRITICAL: Never contaminate titles
-        )

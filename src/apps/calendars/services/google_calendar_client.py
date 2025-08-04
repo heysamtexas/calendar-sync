@@ -456,59 +456,38 @@ class GoogleCalendarClient:
         self, calendar_id: str, google_event_id: str, max_retries: int = 3
     ) -> dict | None:
         """
-        Get event with Guilfoyle's production-hardened error handling
+        Get event with production-hardened error handling
         
-        Handles:
-        - 404: Event deleted on Google side
-        - 403: Permission issues 
-        - 5xx: Server errors with retry
-        - Rate limits: Intelligent backoff
+        Uses existing rate limiting, adds handling for deleted events and permissions
         """
-        for attempt in range(max_retries):
-            try:
-                service = self._get_service()
-                request = service.events().get(calendarId=calendar_id, eventId=google_event_id)
-                return self._execute_with_rate_limiting(
-                    request, f"get_event {google_event_id}"
-                )
+        try:
+            service = self._get_service()
+            request = service.events().get(calendarId=calendar_id, eventId=google_event_id)
+            return self._execute_with_rate_limiting(
+                request, f"get_event {google_event_id}"
+            )
 
-            except HttpError as e:
-                if e.resp.status == 404:
-                    # Event deleted on Google side - clean up our state
-                    logger.info(f"Event {google_event_id} deleted on Google side")
-                    self._handle_deleted_event(google_event_id)
-                    return None
+        except HttpError as e:
+            if e.resp.status == 404:
+                # Event deleted on Google side - clean up our state
+                logger.info(f"Event {google_event_id} deleted on Google side")
+                self._handle_deleted_event(google_event_id)
+                return None
 
-                elif e.resp.status == 403:
-                    # Permission issue - disable sync for this calendar
-                    logger.error(f"Permission denied for calendar {calendar_id}: {e}")
-                    self._disable_calendar_sync(calendar_id, reason=f"Permission denied: {e}")
-                    return None
+            elif e.resp.status == 403:
+                # Permission issue - disable sync for this calendar
+                logger.error(f"Permission denied for calendar {calendar_id}: {e}")
+                self._disable_calendar_sync(calendar_id, reason=f"Permission denied: {e}")
+                return None
 
-                elif e.resp.status >= 500 or attempt < max_retries - 1:
-                    # Server error or not final attempt - retry
-                    delay = 2 ** attempt
-                    logger.warning(
-                        f"Server error getting event {google_event_id}, retrying in {delay}s: {e}"
-                    )
-                    time.sleep(delay)
-                    continue
-                else:
-                    # Client error on final attempt - log and skip
-                    logger.error(f"Failed to get event {google_event_id}: {e}")
-                    return None
+            else:
+                # Let main rate limiting handle other errors
+                logger.error(f"Failed to get event {google_event_id}: {e}")
+                return None
 
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    delay = 2 ** attempt
-                    logger.warning(f"Unexpected error getting event {google_event_id}, retrying: {e}")
-                    time.sleep(delay)
-                    continue
-                else:
-                    logger.error(f"Unexpected error getting event {google_event_id}: {e}")
-                    return None
-
-        return None
+        except Exception as e:
+            logger.error(f"Unexpected error getting event {google_event_id}: {e}")
+            return None
 
     def create_event_with_uuid_correlation(
         self,
@@ -659,8 +638,8 @@ class GoogleCalendarClient:
                     results['failed'] += 1
                     results['errors'].append(f"Failed to update {google_event_id}")
 
-                # Small delay to avoid overwhelming API
-                time.sleep(0.1)
+                # Brief pause between bulk operations
+                time.sleep(0.2)
 
             except Exception as e:
                 results['failed'] += 1
