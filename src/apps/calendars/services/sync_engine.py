@@ -359,7 +359,7 @@ class SyncEngine:
 
                     # Generate proper busy block tag using the BusyBlock utility
                     busy_block_tag = BusyBlock.generate_tag(target_calendar.id, event.id)
-                    
+
                     # Save busy block in our database with meeting status from source
                     Event.objects.create(
                         calendar=target_calendar,
@@ -482,7 +482,7 @@ class SyncEngine:
 
                 # Generate proper busy block tag using the BusyBlock utility
                 busy_block_tag = BusyBlock.generate_tag(target_calendar.id, event.id)
-                
+
                 # Save busy block in our database with meeting status from source
                 Event.objects.create(
                     calendar=target_calendar,

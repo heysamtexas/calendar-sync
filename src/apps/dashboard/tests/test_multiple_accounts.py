@@ -404,15 +404,15 @@ class MultipleAccountsTest(TestCase):
         # Test dashboard service directly
         service = DashboardService(self.user)
         account_data = service.get_account_detail_data(self.account1.id)
-        
+
         account = account_data["account"]
-        
+
         # Verify the account has last_sync attribute populated
-        self.assertTrue(hasattr(account, 'last_sync'), 
+        self.assertTrue(hasattr(account, 'last_sync'),
                       f"Account {account.email} should have last_sync attribute")
-        self.assertIsNotNone(account.last_sync, 
+        self.assertIsNotNone(account.last_sync,
                            f"Account {account.email} should have a last sync time")
-        
+
         # Verify it gets the successful sync, not the failed one
         last_sync_obj = account.get_last_successful_sync()
         self.assertIsNotNone(last_sync_obj)
@@ -422,12 +422,12 @@ class MultipleAccountsTest(TestCase):
         self.client.login(username="testuser", password="testpass123")
         response = self.client.get(reverse("dashboard:account_detail", args=[self.account1.id]))
         content = response.content.decode()
-        
+
         # Should not show "Never" for accounts with sync history
         last_sync_section = content[content.find("Last Sync:"):content.find("Last Sync:") + 200]
-        self.assertNotIn("Never", last_sync_section, 
+        self.assertNotIn("Never", last_sync_section,
                         "Account detail should not show 'Never' for accounts with sync history")
-        
+
         # Should show some date/time format (look for common date patterns)
         import re
         # Look for date patterns like "Jan 01, 2024 12:34" or similar

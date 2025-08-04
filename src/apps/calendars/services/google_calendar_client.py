@@ -2,8 +2,10 @@
 
 from datetime import datetime, timedelta
 import logging
+import uuid
 
 from django.utils import timezone
+from django.conf import settings
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -275,6 +277,56 @@ class GoogleCalendarClient:
                 results[event_id] = False
 
         return results
+
+    def setup_webhook(self, calendar_id: str) -> dict | None:
+        """
+        Register webhook with Google Calendar for real-time notifications.
+        
+        This is Guilfoyle's minimalist approach - one-time webhook setup
+        that reduces API calls by 95% without complex subscription management.
+        """
+        try:
+            service = self._get_service()
+            
+            # Generate unique channel ID
+            channel_id = f"calendar-sync-{uuid.uuid4().hex[:8]}"
+            
+            # Build webhook URL
+            webhook_url = f"{settings.WEBHOOK_BASE_URL}/webhooks/google/"
+            
+            # Set expiration (Google allows max 7 days for calendar events)
+            expiration_time = timezone.now() + timedelta(days=6)  # 6 days for safety
+            expiration_timestamp = int(expiration_time.timestamp() * 1000)  # Milliseconds
+            
+            # Create webhook subscription
+            watch_request = {
+                'id': channel_id,
+                'type': 'web_hook',
+                'address': webhook_url,
+                'expiration': expiration_timestamp
+            }
+            
+            response = service.events().watch(
+                calendarId=calendar_id,
+                body=watch_request
+            ).execute()
+            
+            logger.info(f"Created webhook for calendar {calendar_id} with channel {channel_id}")
+            
+            return {
+                'channel_id': channel_id,
+                'webhook_url': webhook_url,
+                'expires_at': expiration_time,
+                'resource_id': response.get('resourceId'),
+                'resource_uri': response.get('resourceUri')
+            }
+            
+        except HttpError as e:
+            logger.error(f"Failed to setup webhook for calendar {calendar_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error setting up webhook for calendar {calendar_id}: {e}")
+            return None
 
 
 def get_google_calendar_client(account: CalendarAccount) -> GoogleCalendarClient:

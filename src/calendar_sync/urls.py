@@ -25,6 +25,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("apps.dashboard.urls")),
     path("", include("apps.accounts.urls")),
+    path("webhooks/", include("apps.webhooks.urls")),  # Simplified webhook endpoint
     # Django built-in auth views
     path(
         "login/",

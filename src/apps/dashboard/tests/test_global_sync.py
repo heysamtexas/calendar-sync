@@ -90,7 +90,7 @@ class GlobalSyncTest(TestCase):
         # Should have called sync_all_calendars
         mock_sync.assert_called_once_with(verbose=True)
 
-    @patch("apps.calendars.services.sync_engine.sync_all_calendars") 
+    @patch("apps.calendars.services.sync_engine.sync_all_calendars")
     def test_global_sync_exception_handling(self, mock_sync):
         """Test global sync handles exceptions gracefully"""
         self.client.login(username="testuser", password="testpass123")
@@ -121,7 +121,7 @@ class GlobalSyncTest(TestCase):
         """Test that global sync button is hidden when no accounts exist"""
         # Remove the account
         self.account.delete()
-        
+
         self.client.login(username="testuser", password="testpass123")
 
         response = self.client.get(reverse("dashboard:index"))

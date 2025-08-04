@@ -422,25 +422,25 @@ class SyncEngineTest(TestCase):
 
         # Create test accounts and calendars
         from apps.accounts.models import UserProfile
-        
+
         profile, created = UserProfile.objects.get_or_create(
             user=self.user, defaults={'sync_enabled': True}
         )
         if not created:
             profile.sync_enabled = True
             profile.save()
-        
+
         calendar1 = Calendar.objects.create(
             calendar_account=self.account,
             google_calendar_id="very-long-google-calendar-id-that-could-cause-issues@group.calendar.google.com",
             name="Source Calendar",
             sync_enabled=True,
         )
-        
+
         calendar2 = Calendar.objects.create(
             calendar_account=self.account,
             google_calendar_id="another-very-long-google-calendar-id@group.calendar.google.com",
-            name="Target Calendar", 
+            name="Target Calendar",
             sync_enabled=True,
         )
 
@@ -465,12 +465,12 @@ class SyncEngineTest(TestCase):
         # Verify busy blocks were created in database
         busy_blocks = Event.objects.filter(is_busy_block=True)
         self.assertGreaterEqual(busy_blocks.count(), 1, "At least one busy block should be created")
-        
+
         # Verify all busy block tags are within the database limit
         for busy_block in busy_blocks:
-            self.assertLessEqual(len(busy_block.busy_block_tag), 200, 
+            self.assertLessEqual(len(busy_block.busy_block_tag), 200,
                                f"Busy block tag '{busy_block.busy_block_tag}' exceeds 200 character limit")
-            
+
             # Verify the tag follows the expected format
             self.assertIn("CalSync [source:", busy_block.busy_block_tag)
             self.assertIn(":event", busy_block.busy_block_tag)
@@ -481,9 +481,9 @@ class SyncEngineTest(TestCase):
         """Test that sync operations create properly completed SyncLog entries"""
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         from apps.accounts.models import UserProfile
-        
+
         profile, created = UserProfile.objects.get_or_create(
             user=self.user, defaults={'sync_enabled': True}
         )
@@ -515,16 +515,16 @@ class SyncEngineTest(TestCase):
         # Verify a SyncLog was created
         sync_logs = SyncLog.objects.filter(calendar_account=self.account)
         self.assertGreaterEqual(sync_logs.count(), 1, "At least one sync log should be created")
-        
+
         # Verify the sync log has proper completion data
         successful_logs = sync_logs.filter(status="success")
         self.assertGreaterEqual(successful_logs.count(), 1, "At least one successful sync log should exist")
-        
+
         sync_log = successful_logs.first()
         self.assertEqual(sync_log.status, "success")
         self.assertIsNotNone(sync_log.completed_at, "Successful sync should have completed_at timestamp")
         self.assertIsNotNone(sync_log.started_at, "Sync should have started_at timestamp")
-        
+
         # Verify completed_at is after started_at
-        self.assertGreaterEqual(sync_log.completed_at, sync_log.started_at, 
+        self.assertGreaterEqual(sync_log.completed_at, sync_log.started_at,
                                "completed_at should be after or equal to started_at")

@@ -41,6 +41,9 @@ ALLOWED_HOSTS = [
 GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET")
 
+# Webhook Configuration
+WEBHOOK_BASE_URL = env("WEBHOOK_BASE_URL", default="http://localhost:8000")
+
 
 # Application definition
 
@@ -57,6 +60,7 @@ INSTALLED_APPS = [
     "apps.calendars",
     "apps.accounts",
     "apps.dashboard",
+    "apps.webhooks",  # Simplified webhook implementation
 ]
 
 # Add Django Debug Toolbar for development
