@@ -5,18 +5,19 @@ YOLO MODE: Bulletproof cascade prevention through UUID correlation.
 No more webhook storms. No more events blinking on/off.
 """
 
+from datetime import datetime, timedelta
 import logging
 import sys
+from typing import Any
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
 
-from django.utils import timezone
 from django.db import transaction
+from django.utils import timezone
 
 from apps.calendars.models import Calendar, EventState
 from apps.calendars.services.google_calendar_client import GoogleCalendarClient
-from apps.calendars.utils import UUIDCorrelationUtils, LegacyDetectionUtils
+from apps.calendars.utils import LegacyDetectionUtils, UUIDCorrelationUtils
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class UUIDCorrelationSyncEngine:
     
     YOLO PRINCIPLE: Perfect cascade prevention through database-first state management
     """
-    
+
     def __init__(self):
         self.sync_results = {
             "calendars_processed": 0,
@@ -39,69 +40,69 @@ class UUIDCorrelationSyncEngine:
             "events_deleted": 0,
             "errors": [],
         }
-    
-    def sync_calendar_webhook(self, calendar: Calendar) -> Dict[str, Any]:
+
+    def sync_calendar_webhook(self, calendar: Calendar) -> dict[str, Any]:
         """
         Handle webhook-triggered sync with BULLETPROOF cascade prevention
         
         YOLO: Never process our own events = zero cascades guaranteed
         """
         sync_start = timezone.now()
-        
+
         logger.info(f"🚀 YOLO UUID sync starting for calendar: {calendar.name}")
-        
+
         try:
             # Get enhanced Google Calendar client
             client = GoogleCalendarClient(calendar.calendar_account)
-            
+
             # Fetch all events with UUID correlation data
             google_events = client.list_events_with_uuid_extraction(
                 calendar.google_calendar_id
             )
-            
+
             logger.info(f"📥 Fetched {len(google_events)} events from Google Calendar")
-            
+
             # Process each event with UUID correlation detection
             new_user_events = []
             updated_user_events = []
-            
+
             for google_event in google_events:
                 classification = self._classify_event_bulletproof(google_event, calendar)
-                
+
                 if classification['action'] == 'process_new_user_event':
                     # Brand new user event - needs UUID correlation and busy blocks
                     event_state = self._create_user_event_state(calendar, google_event)
                     new_user_events.append(event_state)
                     self.sync_results["user_events_found"] += 1
-                    
+
                 elif classification['action'] == 'skip_our_event':
                     # Our event - update seen timestamp and skip
                     self._mark_event_seen(classification['uuid'])
                     self.sync_results["our_events_skipped"] += 1
-                    
+
                 elif classification['action'] == 'update_user_event':
                     # Existing user event with changes - needs busy block updates
                     updated_event = self._update_user_event_state(calendar, google_event, classification['uuid'])
                     if updated_event:
                         updated_user_events.append(updated_event)
                         self.sync_results["user_events_updated"] = self.sync_results.get("user_events_updated", 0) + 1
-                    
+
                 elif classification['action'] == 'upgrade_legacy':
                     # Legacy event - upgrade to UUID correlation
                     self._upgrade_legacy_event(calendar, google_event)
                     self.sync_results["legacy_events_upgraded"] += 1
-                
+
                 self.sync_results["events_processed"] += 1
-            
+
             # Create busy blocks for new user events (cascade-proof)
             if new_user_events:
                 logger.info(f"🔒 Creating busy blocks for {len(new_user_events)} new user events")
                 self._create_busy_blocks_cascade_proof(new_user_events)
-            
+
             # Update busy blocks for changed user events (cascade-proof)
             if updated_user_events:
                 logger.info(f"🔄 Updating busy blocks for {len(updated_user_events)} changed user events")
-                
+
                 # Enhanced logging for user visibility
                 for updated_event in updated_user_events:
                     print(
@@ -109,14 +110,14 @@ class UUIDCorrelationSyncEngine:
                         file=sys.stderr,
                         flush=True,
                     )
-                
+
                 self._update_busy_blocks_cascade_proof(updated_user_events)
-            
+
             # CRITICAL: Check for deleted events and cleanup busy blocks
             deleted_events = self._detect_deleted_events(calendar, google_events)
             if deleted_events:
                 logger.info(f"🗑️ Found {len(deleted_events)} deleted events - cleaning up busy blocks")
-                
+
                 # Enhanced logging for user visibility
                 for deleted_event in deleted_events:
                     print(
@@ -124,35 +125,35 @@ class UUIDCorrelationSyncEngine:
                         file=sys.stderr,
                         flush=True,
                     )
-                
+
                 self._cleanup_deleted_events(deleted_events)
                 self.sync_results["events_deleted"] = len(deleted_events)
-            
+
             # Update stats
             self.sync_results["calendars_processed"] = 1
-            
+
             sync_duration = (timezone.now() - sync_start).total_seconds()
-            
+
             logger.info(
                 f"✅ YOLO sync completed for {calendar.name} in {sync_duration:.2f}s: "
                 f"{self.sync_results['user_events_found']} new events, "
                 f"{self.sync_results['busy_blocks_created']} busy blocks created, "
                 f"{self.sync_results['our_events_skipped']} our events skipped"
             )
-            
+
             return self.sync_results
-            
+
         except Exception as e:
             error_msg = f"💥 YOLO sync failed for calendar {calendar.name}: {e}"
             logger.error(error_msg)
             self.sync_results["errors"].append(error_msg)
             return self.sync_results
-    
+
     def _classify_event_bulletproof(
-        self, 
-        google_event: Dict[str, Any], 
+        self,
+        google_event: dict[str, Any],
         calendar: Calendar
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Bulletproof event classification using UUID correlation
         
@@ -160,50 +161,49 @@ class UUIDCorrelationSyncEngine:
         """
         # Try UUID correlation first (bulletproof method)
         is_ours, correlation_uuid = UUIDCorrelationUtils.is_our_event(google_event)
-        
+
         if correlation_uuid:
             # DEBUG: Log classification decision
             event_title = google_event.get('summary', 'No Title')
             logger.info(f"🔍 Event classification: '{event_title}' -> is_ours={is_ours}, uuid={correlation_uuid}")
-            
+
             if is_ours:
                 return {
                     'action': 'skip_our_event',
                     'uuid': correlation_uuid,
                     'method': 'uuid_correlation'
                 }
+            # Check if this user event has changes that need busy block updates
+            elif self._has_user_event_changes(correlation_uuid, google_event):
+                return {
+                    'action': 'update_user_event',
+                    'uuid': correlation_uuid,
+                    'method': 'uuid_correlation_update'
+                }
             else:
-                # Check if this user event has changes that need busy block updates
-                if self._has_user_event_changes(correlation_uuid, google_event):
-                    return {
-                        'action': 'update_user_event',
-                        'uuid': correlation_uuid,
-                        'method': 'uuid_correlation_update'
-                    }
-                else:
-                    return {
-                        'action': 'update_seen',
-                        'uuid': correlation_uuid,
-                        'method': 'uuid_correlation'
-                    }
-        
+                return {
+                    'action': 'update_seen',
+                    'uuid': correlation_uuid,
+                    'method': 'uuid_correlation'
+                }
+
         # Check for legacy events (transition period)
         if LegacyDetectionUtils.is_legacy_busy_block(google_event):
             return {
                 'action': 'upgrade_legacy',
                 'method': 'legacy_detection'
             }
-        
+
         # No UUID correlation = new user event
         return {
             'action': 'process_new_user_event',
             'method': 'no_correlation'
         }
-    
+
     def _create_user_event_state(
-        self, 
-        calendar: Calendar, 
-        google_event: Dict[str, Any]
+        self,
+        calendar: Calendar,
+        google_event: dict[str, Any]
     ) -> EventState:
         """
         Create EventState for new user event with UUID correlation
@@ -211,15 +211,19 @@ class UUIDCorrelationSyncEngine:
         YOLO: Database-first = authoritative source of truth
         """
         with transaction.atomic():
-            # Create EventState first
+            # Create EventState first - CLEAN title to prevent UUID contamination from Google
+            from apps.calendars.utils import UUIDCorrelationUtils
+            raw_title = google_event.get('summary', '')
+            clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
+
             event_state = EventState.create_user_event(
                 calendar=calendar,
                 google_event_id=google_event['id'],
-                title=google_event.get('summary', ''),
+                title=clean_title,
                 start_time=self._parse_event_datetime(google_event.get('start')),
                 end_time=self._parse_event_datetime(google_event.get('end'))
             )
-            
+
             # Add UUID correlation to Google event
             client = GoogleCalendarClient(calendar.calendar_account)
             updated_event = client.update_event_with_uuid_correlation(
@@ -227,15 +231,15 @@ class UUIDCorrelationSyncEngine:
                 google_event_id=google_event['id'],
                 correlation_uuid=str(event_state.uuid)
             )
-            
+
             if updated_event:
                 logger.info(f"✅ Created user event state with UUID {event_state.uuid}")
             else:
                 logger.warning(f"⚠️ Failed to add UUID correlation to Google event {google_event['id']}")
-            
+
             return event_state
-    
-    def _upgrade_legacy_event(self, calendar: Calendar, google_event: Dict[str, Any]):
+
+    def _upgrade_legacy_event(self, calendar: Calendar, google_event: dict[str, Any]):
         """
         Upgrade legacy event to UUID correlation system
         
@@ -244,12 +248,16 @@ class UUIDCorrelationSyncEngine:
         try:
             # Generate new UUID for legacy event
             correlation_uuid = uuid.uuid4()
-            
+
             # Create EventState for legacy event with pre-generated UUID
             from django.db import transaction
-            
+
             with transaction.atomic():
-                # Create EventState directly with specific UUID
+                # Create EventState directly with specific UUID - CLEAN title
+                from apps.calendars.utils import UUIDCorrelationUtils
+                raw_title = google_event.get('summary', '')
+                clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
+
                 event_state = EventState(
                     uuid=correlation_uuid,
                     calendar=calendar,
@@ -257,13 +265,13 @@ class UUIDCorrelationSyncEngine:
                     status='SYNCED',  # Legacy events are already synced
                     is_busy_block=False,  # Legacy user events are not busy blocks
                     source_uuid=None,  # User events don't have source
-                    title=google_event.get('summary', ''),
+                    title=clean_title,
                     start_time=self._parse_event_datetime(google_event.get('start')),
                     end_time=self._parse_event_datetime(google_event.get('end')),
                     last_seen_at=timezone.now()
                 )
                 event_state.save()
-                
+
                 # Add UUID correlation to Google event
                 client = GoogleCalendarClient(calendar.calendar_account)
                 client.update_event_with_uuid_correlation(
@@ -271,12 +279,12 @@ class UUIDCorrelationSyncEngine:
                     google_event_id=google_event['id'],
                     correlation_uuid=str(correlation_uuid)
                 )
-            
+
             logger.info(f"🔄 Upgraded legacy event to UUID correlation: {correlation_uuid}")
-            
+
         except Exception as e:
             logger.error(f"Failed to upgrade legacy event {google_event.get('id')}: {e}")
-    
+
     def _mark_event_seen(self, correlation_uuid: str):
         """Update last seen timestamp for event"""
         try:
@@ -286,8 +294,8 @@ class UUIDCorrelationSyncEngine:
             )
         except Exception as e:
             logger.error(f"Failed to mark event seen {correlation_uuid}: {e}")
-    
-    def _create_busy_blocks_cascade_proof(self, user_event_states: List[EventState]):
+
+    def _create_busy_blocks_cascade_proof(self, user_event_states: list[EventState]):
         """
         Create busy blocks with CASCADE-PROOF UUID correlation
         
@@ -295,24 +303,24 @@ class UUIDCorrelationSyncEngine:
         """
         for user_event_state in user_event_states:
             try:
-                # Get target calendars for busy block creation  
+                # Get target calendars for busy block creation
                 target_calendars = self._get_sync_target_calendars(user_event_state.calendar)
-                
+
                 if not target_calendars:
                     continue
-                
+
                 # Create busy blocks in all target calendars
                 for target_calendar in target_calendars:
                     self._create_single_busy_block_uuid(
                         source_event_state=user_event_state,
                         target_calendar=target_calendar
                     )
-                    
+
             except Exception as e:
                 error_msg = f"Failed to create busy blocks for {user_event_state.uuid}: {e}"
                 logger.error(error_msg)
                 self.sync_results["errors"].append(error_msg)
-    
+
     def _create_single_busy_block_uuid(
         self,
         source_event_state: EventState,
@@ -330,20 +338,20 @@ class UUIDCorrelationSyncEngine:
                 source_uuid=source_event_state.uuid,
                 title=source_event_state.title or "Event"
             )
-            
+
             # Create busy block in Google Calendar with UUID correlation
             client = GoogleCalendarClient(target_calendar.calendar_account)
-            
+
             # CRITICAL: Clean title to prevent cascade prefixes and UUID contamination
             from apps.calendars.utils import UUIDCorrelationUtils
-            
+
             raw_title = source_event_state.title or "Event"
             # Remove invisible UUID markers first
             clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
             # Remove "Busy - " prefix if present
             if clean_title.startswith('Busy - '):
                 clean_title = clean_title[7:]
-            
+
             event_data = {
                 'summary': f'Busy - {clean_title}',
                 'description': f'Busy block for event from {source_event_state.calendar.name}',
@@ -352,19 +360,19 @@ class UUIDCorrelationSyncEngine:
                 'transparency': 'opaque',  # Show as busy
                 'visibility': 'private',   # Private visibility
             }
-            
+
             created_event = client.create_event_with_uuid_correlation(
                 calendar_id=target_calendar.google_calendar_id,
                 event_data=event_data,
                 correlation_uuid=str(busy_block_state.uuid),
                 skip_title_embedding=True  # CRITICAL: Prevent UUID contamination in busy block titles
             )
-            
+
             if created_event:
                 # Mark as synced with Google event ID
                 busy_block_state.mark_synced(created_event['id'])
                 self.sync_results["busy_blocks_created"] += 1
-                
+
                 logger.info(
                     f"🔒 Created UUID busy block {busy_block_state.uuid} in {target_calendar.name}"
                 )
@@ -372,12 +380,12 @@ class UUIDCorrelationSyncEngine:
                 # Failed to create in Google - mark as failed
                 busy_block_state.mark_deleted()
                 logger.error(f"Failed to create busy block in Google Calendar for {target_calendar.name}")
-                
+
         except Exception as e:
             logger.error(f"Failed to create busy block in {target_calendar.name}: {e}")
             raise
-    
-    def _get_sync_target_calendars(self, source_calendar: Calendar) -> List[Calendar]:
+
+    def _get_sync_target_calendars(self, source_calendar: Calendar) -> list[Calendar]:
         """Get target calendars for busy block creation (same user only)"""
         return list(
             Calendar.objects.filter(
@@ -388,12 +396,12 @@ class UUIDCorrelationSyncEngine:
                 id=source_calendar.id
             ).select_related('calendar_account')
         )
-    
-    def _parse_event_datetime(self, time_data: Optional[Dict[str, Any]]) -> Optional[datetime]:
+
+    def _parse_event_datetime(self, time_data: dict[str, Any] | None) -> datetime | None:
         """Parse event datetime from Google Calendar format"""
         if not time_data:
             return None
-        
+
         try:
             if "dateTime" in time_data:
                 time_str = time_data["dateTime"]
@@ -405,20 +413,20 @@ class UUIDCorrelationSyncEngine:
                 return datetime.fromisoformat(f"{date_str}T00:00:00+00:00")
         except (ValueError, KeyError):
             pass
-        
+
         return timezone.now()
-    
-    def _format_event_datetime(self, dt: Optional[datetime]) -> Dict[str, str]:
+
+    def _format_event_datetime(self, dt: datetime | None) -> dict[str, str]:
         """Format datetime for Google Calendar API"""
         if not dt:
             dt = timezone.now()
-        
+
         return {
             'dateTime': dt.isoformat(),
             'timeZone': 'UTC',
         }
-    
-    def _detect_deleted_events(self, calendar: Calendar, google_events: List[Dict[str, Any]]) -> List[EventState]:
+
+    def _detect_deleted_events(self, calendar: Calendar, google_events: list[dict[str, Any]]) -> list[EventState]:
         """
         Detect events that exist in our database but are missing from Google Calendar
         
@@ -427,7 +435,7 @@ class UUIDCorrelationSyncEngine:
         try:
             # Get all Google event IDs from the current sync
             google_event_ids = set(event['id'] for event in google_events)
-            
+
             # Find EventState records for this calendar that should exist in Google
             existing_event_states = EventState.objects.filter(
                 calendar=calendar,
@@ -435,7 +443,7 @@ class UUIDCorrelationSyncEngine:
                 is_busy_block=False,  # Only user events (source events)
                 google_event_id__isnull=False  # Must have Google event ID
             )
-            
+
             # Check which ones are missing from Google Calendar
             deleted_events = []
             for event_state in existing_event_states:
@@ -443,14 +451,14 @@ class UUIDCorrelationSyncEngine:
                     # This event exists in our DB but not in Google = deleted by user
                     deleted_events.append(event_state)
                     logger.info(f"🗑️ Event deleted by user: {event_state.title} ({event_state.google_event_id})")
-            
+
             return deleted_events
-            
+
         except Exception as e:
             logger.error(f"Failed to detect deleted events for {calendar.name}: {e}")
             return []
-    
-    def _cleanup_deleted_events(self, deleted_events: List[EventState]):
+
+    def _cleanup_deleted_events(self, deleted_events: list[EventState]):
         """
         Clean up deleted events and their associated busy blocks
         
@@ -465,7 +473,7 @@ class UUIDCorrelationSyncEngine:
                         is_busy_block=True,
                         status='SYNCED'
                     )
-                    
+
                     # Delete busy blocks from Google Calendar first
                     for busy_block in busy_blocks:
                         if busy_block.google_event_id:
@@ -481,48 +489,51 @@ class UUIDCorrelationSyncEngine:
                                     logger.warning(f"⚠️ Failed to delete busy block from Google: {busy_block.google_event_id}")
                             except Exception as e:
                                 logger.error(f"Error deleting busy block {busy_block.google_event_id}: {e}")
-                    
+
                     # Mark busy blocks as deleted in our database
                     busy_blocks_updated = busy_blocks.update(
                         status='DELETED',
                         updated_at=timezone.now()
                     )
-                    
+
                     # Mark source event as deleted
                     deleted_event.status = 'DELETED'
                     deleted_event.updated_at = timezone.now()
                     deleted_event.save(update_fields=['status', 'updated_at'])
-                    
+
                     cleanup_msg = f"✅ Cleaned up deleted event {deleted_event.title}: marked {busy_blocks_updated} busy blocks as deleted"
                     logger.info(cleanup_msg)
-                    
+
                     # Enhanced visibility for cleanup completion
                     print(
                         f"STDERR [{timezone.now().isoformat()}]: {cleanup_msg}",
                         file=sys.stderr,
                         flush=True,
                     )
-                    
+
             except Exception as e:
                 logger.error(f"Failed to cleanup deleted event {deleted_event.uuid}: {e}")
-    
-    def _has_user_event_changes(self, correlation_uuid: str, google_event: Dict[str, Any]) -> bool:
+
+    def _has_user_event_changes(self, correlation_uuid: str, google_event: dict[str, Any]) -> bool:
         """
         Check if user event has changes that require busy block updates
         
         YOLO: Detect time, duration, or title changes that need propagation
         """
         try:
+            from apps.calendars.utils import UUIDCorrelationUtils
+
             # Get existing EventState
             event_state = EventState.objects.by_uuid(correlation_uuid)
             if not event_state or event_state.is_busy_block:
                 return False
-            
-            # Parse Google event times
+
+            # Parse Google event times and clean title
             google_start = self._parse_event_datetime(google_event.get('start'))
             google_end = self._parse_event_datetime(google_event.get('end'))
-            google_title = google_event.get('summary', '')
-            
+            raw_google_title = google_event.get('summary', '')
+            google_title = UUIDCorrelationUtils.clean_title_for_display(raw_google_title)
+
             # Check for changes
             changes = []
             if event_state.start_time != google_start:
@@ -531,18 +542,18 @@ class UUIDCorrelationSyncEngine:
                 changes.append(f"end: {event_state.end_time} -> {google_end}")
             if event_state.title != google_title:
                 changes.append(f"title: '{event_state.title}' -> '{google_title}'")
-            
+
             if changes:
                 logger.info(f"🔄 Event changes detected for {correlation_uuid}: {', '.join(changes)}")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Failed to check event changes for {correlation_uuid}: {e}")
             return False
-    
-    def _update_user_event_state(self, calendar: Calendar, google_event: Dict[str, Any], correlation_uuid: str) -> Optional[EventState]:
+
+    def _update_user_event_state(self, calendar: Calendar, google_event: dict[str, Any], correlation_uuid: str) -> EventState | None:
         """
         Update existing user event state with new data from Google
         
@@ -555,26 +566,28 @@ class UUIDCorrelationSyncEngine:
                 if not event_state:
                     logger.warning(f"EventState not found for UUID {correlation_uuid}")
                     return None
-                
-                # Update with new data
-                event_state.title = google_event.get('summary', '')
+
+                # Update with new data - CLEAN title to remove UUID contamination
+                from apps.calendars.utils import UUIDCorrelationUtils
+                raw_title = google_event.get('summary', '')
+                event_state.title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
                 event_state.start_time = self._parse_event_datetime(google_event.get('start'))
                 event_state.end_time = self._parse_event_datetime(google_event.get('end'))
                 event_state.last_seen_at = timezone.now()
                 event_state.updated_at = timezone.now()
-                
+
                 event_state.save(update_fields=[
                     'title', 'start_time', 'end_time', 'last_seen_at', 'updated_at'
                 ])
-                
+
                 logger.info(f"🔄 Updated user event state: {event_state.title}")
                 return event_state
-                
+
         except Exception as e:
             logger.error(f"Failed to update user event state {correlation_uuid}: {e}")
             return None
-    
-    def _update_busy_blocks_cascade_proof(self, updated_user_events: List[EventState]):
+
+    def _update_busy_blocks_cascade_proof(self, updated_user_events: list[EventState]):
         """
         Update busy blocks across calendars when source events change
         
@@ -588,16 +601,16 @@ class UUIDCorrelationSyncEngine:
                     is_busy_block=True,
                     status='SYNCED'
                 )
-                
+
                 logger.info(f"🔄 Updating {busy_blocks.count()} busy blocks for changed event {updated_event.title}")
-                
+
                 # Update each busy block
                 for busy_block in busy_blocks:
                     self._update_single_busy_block(busy_block, updated_event)
-                    
+
             except Exception as e:
                 logger.error(f"Failed to update busy blocks for {updated_event.uuid}: {e}")
-    
+
     def _update_single_busy_block(self, busy_block: EventState, source_event: EventState):
         """
         Update single busy block to match source event changes
@@ -609,26 +622,26 @@ class UUIDCorrelationSyncEngine:
                 # Update busy block database record first
                 # CRITICAL: Clean source title to prevent "Busy - Busy -" cascade and UUID contamination
                 from apps.calendars.utils import UUIDCorrelationUtils
-                
+
                 raw_title = source_event.title or 'Event'
                 # Remove invisible UUID markers first
                 clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
                 # Remove "Busy - " prefix if present
                 if clean_title.startswith('Busy - '):
                     clean_title = clean_title[7:]
-                
+
                 busy_block.title = f"Busy - {clean_title}"
                 busy_block.start_time = source_event.start_time
                 busy_block.end_time = source_event.end_time
                 busy_block.updated_at = timezone.now()
-                
+
                 busy_block.save(update_fields=[
                     'title', 'start_time', 'end_time', 'updated_at'
                 ])
-                
+
                 # Update in Google Calendar
                 client = GoogleCalendarClient(busy_block.calendar.calendar_account)
-                
+
                 event_data = {
                     'summary': busy_block.title,
                     'description': f'Busy block for event from {source_event.calendar.name}',
@@ -637,16 +650,16 @@ class UUIDCorrelationSyncEngine:
                     'transparency': 'opaque',
                     'visibility': 'private',
                 }
-                
+
                 updated_event = client.update_event(
                     busy_block.calendar.google_calendar_id,
                     busy_block.google_event_id,
                     event_data
                 )
-                
+
                 if updated_event:
                     logger.info(f"🔄 Updated busy block in Google Calendar: {busy_block.google_event_id}")
-                    
+
                     # Log completion
                     print(
                         f"STDERR [{timezone.now().isoformat()}]: ✅ Updated busy block in {busy_block.calendar.name}",
@@ -655,7 +668,7 @@ class UUIDCorrelationSyncEngine:
                     )
                 else:
                     logger.error(f"Failed to update busy block in Google Calendar: {busy_block.google_event_id}")
-                    
+
         except Exception as e:
             logger.error(f"Failed to update busy block {busy_block.uuid}: {e}")
 
@@ -666,32 +679,32 @@ class YOLOWebhookHandler:
     
     ZERO CASCADES GUARANTEED
     """
-    
+
     def __init__(self):
         self.sync_engine = UUIDCorrelationSyncEngine()
-    
-    def handle_webhook(self, calendar: Calendar) -> Dict[str, Any]:
+
+    def handle_webhook(self, calendar: Calendar) -> dict[str, Any]:
         """
         Handle webhook with bulletproof cascade prevention
         
         YOLO: UUID correlation = never process our own events = zero cascades
         """
         webhook_start = timezone.now()
-        
+
         logger.info(f"🎯 YOLO webhook handler processing: {calendar.name}")
-        
+
         try:
             # Use UUID correlation sync engine
             results = self.sync_engine.sync_calendar_webhook(calendar)
-            
+
             # Log results
             processing_duration = (timezone.now() - webhook_start).total_seconds()
-            
+
             logger.info(
                 f"✅ YOLO webhook completed for {calendar.name} in {processing_duration:.2f}s: "
                 f"Results: {results}"
             )
-            
+
             return {
                 'status': 'success',
                 'calendar': calendar.name,
@@ -700,12 +713,12 @@ class YOLOWebhookHandler:
                 'cascade_prevention': 'ACTIVE',
                 'uuid_correlation': 'ENABLED'
             }
-            
+
         except Exception as e:
             processing_duration = (timezone.now() - webhook_start).total_seconds()
-            
+
             logger.error(f"💥 YOLO webhook failed for {calendar.name} in {processing_duration:.2f}s: {e}")
-            
+
             return {
                 'status': 'error',
                 'calendar': calendar.name,
@@ -718,31 +731,31 @@ class YOLOWebhookHandler:
 
 # YOLO UTILITY FUNCTIONS
 
-def sync_calendar_yolo(calendar: Calendar) -> Dict[str, Any]:
+def sync_calendar_yolo(calendar: Calendar) -> dict[str, Any]:
     """YOLO sync specific calendar with UUID correlation"""
     engine = UUIDCorrelationSyncEngine()
     return engine.sync_calendar_webhook(calendar)
 
 
-def handle_webhook_yolo(calendar: Calendar) -> Dict[str, Any]:
+def handle_webhook_yolo(calendar: Calendar) -> dict[str, Any]:
     """YOLO webhook handler with cascade prevention"""
     handler = YOLOWebhookHandler()
     return handler.handle_webhook(calendar)
 
 
-def emergency_cascade_stop() -> Dict[str, Any]:
+def emergency_cascade_stop() -> dict[str, Any]:
     """
     Emergency function to stop any cascading webhooks
     
     YOLO: Nuclear option - disable all webhook processing temporarily
     """
     from django.core.cache import cache
-    
+
     # Set global cascade prevention flag
     cache.set('YOLO_CASCADE_PREVENTION_ACTIVE', True, 3600)  # 1 hour
-    
+
     logger.critical("🚨 EMERGENCY CASCADE STOP ACTIVATED - All webhook processing disabled for 1 hour")
-    
+
     return {
         'status': 'cascade_prevention_activated',
         'message': 'All webhook processing disabled for 1 hour',

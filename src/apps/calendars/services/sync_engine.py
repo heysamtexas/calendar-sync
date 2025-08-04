@@ -194,7 +194,7 @@ class SyncEngine:
                         'attendees_count': len(event.get('attendees', []))
                     }
                     google_events_summary.append(event_summary)
-                
+
                 # Add to webhook context for logging
                 self._webhook_context['google_api_response'] = {
                     'fetch_timestamp': sync_start.isoformat(),

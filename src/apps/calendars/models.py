@@ -545,14 +545,14 @@ class Event(models.Model):
         default=False,
         help_text="Whether this event is a meeting invite (has attendees)",
     )
-    
+
     # UUID correlation tracking (links to EventState)
     correlation_uuid = models.UUIDField(
         null=True,
         blank=True,
         help_text="UUID linking this event to EventState for correlation tracking"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -607,13 +607,13 @@ class Event(models.Model):
         if self.source_event and self.calendar:
             return BusyBlock.generate_tag(self.calendar.id, self.source_event.id)
         return ""
-    
+
     def get_event_state(self):
         """Get associated EventState record using correlation UUID"""
         if self.correlation_uuid:
             return EventState.objects.by_uuid(self.correlation_uuid)
         return None
-    
+
     def ensure_event_state(self):
         """Ensure this event has an associated EventState record"""
         if not self.correlation_uuid:
@@ -755,25 +755,25 @@ class SyncLog(models.Model):
 
 class EventStateManager(models.Manager):
     """Manager for EventState operations"""
-    
+
     def our_events(self, calendar=None):
         """Get events created by our system"""
         queryset = self.filter(is_busy_block=True)
         if calendar:
             queryset = queryset.filter(calendar=calendar)
         return queryset
-    
+
     def user_events(self, calendar=None):
         """Get events created by users"""
         queryset = self.filter(is_busy_block=False)
         if calendar:
             queryset = queryset.filter(calendar=calendar)
         return queryset
-    
+
     def pending_sync(self):
         """Get events that need to be synced to Google"""
         return self.filter(status='PENDING')
-    
+
     def by_uuid(self, event_uuid):
         """Find EventState by UUID"""
         try:
@@ -789,14 +789,14 @@ class EventState(models.Model):
     Guilfoyle's 3-state design: PENDING → SYNCED → DELETED
     No complex state machine, just what we actually need.
     """
-    
+
     # Simplified status choices
     STATUS_CHOICES = [
         ('PENDING', 'Pending Sync'),    # Event exists locally, needs sync to Google
         ('SYNCED', 'Synchronized'),     # Event is synchronized with Google
         ('DELETED', 'Deleted'),         # Event was deleted (tombstone)
     ]
-    
+
     # Primary key is UUID for correlation tracking
     uuid = models.UUIDField(
         primary_key=True,
@@ -804,7 +804,7 @@ class EventState(models.Model):
         editable=False,
         help_text="UUID for correlation tracking across Google Calendar and our system"
     )
-    
+
     # Calendar relationship
     calendar = models.ForeignKey(
         Calendar,
@@ -812,7 +812,7 @@ class EventState(models.Model):
         related_name='event_states',
         help_text="Calendar where this event exists"
     )
-    
+
     # Google Calendar integration
     google_event_id = models.CharField(
         max_length=200,
@@ -820,7 +820,7 @@ class EventState(models.Model):
         blank=True,
         help_text="Google Calendar event ID (set after sync)"
     )
-    
+
     # Simplified status tracking
     status = models.CharField(
         max_length=20,
@@ -828,39 +828,39 @@ class EventState(models.Model):
         default='PENDING',
         help_text="Current sync status"
     )
-    
+
     # Event type classification
     is_busy_block = models.BooleanField(
         default=False,
         help_text="True if this is a system-created busy block"
     )
-    
+
     # Source tracking for busy blocks
     source_uuid = models.UUIDField(
         null=True,
         blank=True,
         help_text="UUID of source event (for busy blocks only)"
     )
-    
+
     # Event metadata for debugging and display
     title = models.CharField(
         max_length=500,
         blank=True,
         help_text="Event title for debugging and display"
     )
-    
+
     start_time = models.DateTimeField(
         null=True,
         blank=True,
         help_text="Event start time (cached for performance)"
     )
-    
+
     end_time = models.DateTimeField(
         null=True,
         blank=True,
         help_text="Event end time (cached for performance)"
     )
-    
+
     # Tracking timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -869,9 +869,9 @@ class EventState(models.Model):
         blank=True,
         help_text="Last time this event was seen in Google Calendar"
     )
-    
+
     objects = EventStateManager()
-    
+
     class Meta:
         verbose_name = "Event State"
         verbose_name_plural = "Event States"
@@ -893,53 +893,53 @@ class EventState(models.Model):
                 name='busy_block_source_constraint'
             )
         ]
-    
+
     def __str__(self):
         status_indicator = f"[{self.status}]"
         block_indicator = " [BUSY]" if self.is_busy_block else ""
         return f"{self.title or 'Untitled'} {status_indicator}{block_indicator}"
-    
+
     def clean(self):
         """Validate event state"""
         if self.is_busy_block and not self.source_uuid:
             raise ValidationError(
                 {"source_uuid": "Busy blocks must have a source_uuid"}
             )
-        
+
         if not self.is_busy_block and self.source_uuid:
             raise ValidationError(
                 {"source_uuid": "User events cannot have a source_uuid"}
             )
-    
+
     def mark_synced(self, google_event_id):
         """Mark event as synchronized with Google Calendar"""
         self.google_event_id = google_event_id
         self.status = 'SYNCED'
         self.last_seen_at = timezone.now()
         self.save(update_fields=['google_event_id', 'status', 'last_seen_at', 'updated_at'])
-    
+
     def mark_seen(self):
         """Update last seen timestamp"""
         self.last_seen_at = timezone.now()
         self.save(update_fields=['last_seen_at', 'updated_at'])
-    
+
     def mark_deleted(self):
         """Mark event as deleted"""
         self.status = 'DELETED'
         self.save(update_fields=['status', 'updated_at'])
-    
+
     def get_source_event(self):
         """Get the source event for busy blocks"""
         if self.source_uuid:
             return EventState.objects.by_uuid(self.source_uuid)
         return None
-    
+
     def get_busy_blocks(self):
         """Get all busy blocks created from this event"""
         if not self.is_busy_block:
             return EventState.objects.filter(source_uuid=self.uuid)
         return EventState.objects.none()
-    
+
     @classmethod
     def create_user_event(cls, calendar, google_event_id, title="", start_time=None, end_time=None):
         """Create EventState for a user event"""
@@ -953,7 +953,7 @@ class EventState(models.Model):
             end_time=end_time,
             last_seen_at=timezone.now()
         )
-    
+
     @classmethod
     def create_busy_block(cls, target_calendar, source_uuid, title=""):
         """Create EventState for a busy block (pending sync)"""
@@ -964,23 +964,23 @@ class EventState(models.Model):
             source_uuid=source_uuid,
             title=f"Busy - {title}",
         )
-    
+
     @classmethod
     def cleanup_stale_events(cls, hours=24):
         """Clean up events not seen recently"""
         from datetime import timedelta
-        
+
         cutoff_time = timezone.now() - timedelta(hours=hours)
-        
+
         # Find events that haven't been seen recently and are supposed to be synced
         stale_events = cls.objects.filter(
             status='SYNCED',
             last_seen_at__lt=cutoff_time
         )
-        
+
         count = stale_events.count()
         if count > 0:
             logger.info(f"Marking {count} stale events as deleted")
             stale_events.update(status='DELETED', updated_at=timezone.now())
-        
+
         return count

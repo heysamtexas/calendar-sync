@@ -5,12 +5,11 @@ This is the complete webhook solution in ~50 lines of code.
 Achieves 95% API call reduction without architectural over-engineering.
 """
 
+from datetime import datetime
 import json
 import logging
-import os
-import sys
-from datetime import datetime
 from pathlib import Path
+import sys
 
 from django.http import HttpResponse
 from django.utils.decorators import method_decorator
