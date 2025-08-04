@@ -177,6 +177,36 @@ class SyncEngine:
                 flush=True,
             )
 
+            # Store Google API response data for webhook analysis
+            if hasattr(self, '_webhook_context') and self._webhook_context:
+                google_events_summary = []
+                for event in google_events:
+                    event_summary = {
+                        'id': event.get('id'),
+                        'summary': event.get('summary', ''),
+                        'description': event.get('description', ''),
+                        'start': event.get('start', {}),
+                        'end': event.get('end', {}),
+                        'status': event.get('status'),
+                        'updated': event.get('updated'),
+                        'created': event.get('created'),
+                        'is_calsync_busy_block': 'CalSync' in event.get('summary', '') or 'CalSync' in event.get('description', ''),
+                        'attendees_count': len(event.get('attendees', []))
+                    }
+                    google_events_summary.append(event_summary)
+                
+                # Add to webhook context for logging
+                self._webhook_context['google_api_response'] = {
+                    'fetch_timestamp': sync_start.isoformat(),
+                    'fetch_duration_seconds': fetch_duration,
+                    'events_count': len(google_events),
+                    'events': google_events_summary,
+                    'time_range': {
+                        'time_min': time_min.isoformat(),
+                        'time_max': time_max.isoformat()
+                    }
+                }
+
             logger.info(f"Fetched {len(google_events)} events from Google Calendar")
 
             # Process each event

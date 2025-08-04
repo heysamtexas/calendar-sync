@@ -53,6 +53,7 @@ def analyze_webhook_patterns(webhook_data):
     calendars = set()
     message_numbers = []
     processing_decisions = defaultdict(int)
+    calsync_events_found = 0
     
     print(f"📊 Total webhooks captured: {total_webhooks}")
     
@@ -72,14 +73,27 @@ def analyze_webhook_patterns(webhook_data):
         decisions = webhook.get('processing_decisions', {})
         for decision_type in decisions.keys():
             processing_decisions[decision_type] += 1
+        
+        # Check for CalSync events in API response
+        api_response = webhook.get('google_api_response', {})
+        if api_response:
+            events = api_response.get('events', [])
+            for event in events:
+                if event.get('is_calsync_busy_block', False):
+                    calsync_events_found += 1
     
     print(f"📅 Unique calendars involved: {len(calendars)}")
     print(f"📈 Message number range: {min(message_numbers) if message_numbers else 'N/A'} - {max(message_numbers) if message_numbers else 'N/A'}")
+    print(f"🔒 CalSync busy blocks found: {calsync_events_found}")
     
     # Processing decisions summary
     print(f"\n🎯 Processing Decisions:")
     for decision, count in processing_decisions.items():
         print(f"   {decision}: {count}")
+    
+    # Google API Response Analysis
+    print(f"\n📊 GOOGLE API RESPONSE ANALYSIS:")
+    analyze_google_api_responses(webhook_data)
     
     # Detect potential cascades
     print(f"\n🔄 CASCADE DETECTION:")
@@ -88,6 +102,35 @@ def analyze_webhook_patterns(webhook_data):
     # Timing analysis
     print(f"\n⏰ TIMING ANALYSIS:")
     analyze_timing(webhook_data)
+
+
+def analyze_google_api_responses(webhook_data):
+    """Analyze Google API responses captured from webhooks"""
+    api_responses = []
+    total_events = 0
+    calsync_events = 0
+    
+    for webhook in webhook_data:
+        api_response = webhook.get('google_api_response')
+        if api_response:
+            api_responses.append(api_response)
+            events = api_response.get('events', [])
+            total_events += len(events)
+            
+            for event in events:
+                if event.get('is_calsync_busy_block', False):
+                    calsync_events += 1
+                    print(f"   🔒 CalSync Busy Block: '{event.get('summary', 'No title')}' (ID: {event.get('id', 'unknown')})")
+    
+    if api_responses:
+        print(f"   📊 API Responses: {len(api_responses)} webhooks made API calls")
+        print(f"   📅 Total events returned: {total_events}")
+        print(f"   🔒 CalSync busy blocks: {calsync_events}")
+        
+        if calsync_events > 0:
+            print(f"   🚨 WARNING: {calsync_events} CalSync busy blocks detected - potential cascade source!")
+    else:
+        print("   ❌ No Google API response data found")
 
 
 def detect_cascades(webhook_data):

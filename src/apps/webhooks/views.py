@@ -282,6 +282,10 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
             # Use existing sync engine - sync the specific calendar that changed (webhook-triggered)
             logger.info(f"Starting webhook-triggered sync for calendar {calendar.name}")
             sync_engine = SyncEngine()
+            
+            # Pass webhook context to sync engine for API response logging
+            sync_engine._webhook_context = self.current_payload
+            
             results = sync_engine.sync_specific_calendar(
                 calendar.id, webhook_triggered=True
             )
