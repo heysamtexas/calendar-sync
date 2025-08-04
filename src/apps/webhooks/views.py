@@ -150,42 +150,8 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
         global_cache_key = f"calendar_sync_lock_{calendar_id}"
         webhook_cache_key = f"webhook_sync_{channel_id}"
 
-        # SIMPLE APPROACH: Let webhooks through, but never create cross-calendar busy blocks from them
-
-        # NEW: Webhook storm throttling - limit to max 1 webhook per calendar per minute
-        throttle_key = f"webhook_throttle_{calendar_id}"
-        last_webhook_data = cache.get(throttle_key)
-
-        if last_webhook_data:
-            last_message_num = last_webhook_data.get("message_number", 0)
-            current_message_num = message_number
-
-            # If message number hasn't significantly advanced, likely a webhook storm
-            if (
-                current_message_num - last_message_num < 10
-            ):  # Allow some normal activity
-                print(
-                    f"STDERR [{datetime.now().isoformat()}]: 🚫 WEBHOOK THROTTLE: Skipping storm webhook {current_message_num} (last: {last_message_num})",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                logger.info(
-                    f"🚫 WEBHOOK THROTTLE: Ignoring webhook storm - message {current_message_num} too close to {last_message_num}"
-                )
-                self._update_payload(
-                    "throttled",
-                    "Webhook storm detected",
-                    current_message_num=current_message_num,
-                    last_message_num=last_message_num,
-                )
-                return
-
-        # Store current webhook info for throttling
-        cache.set(
-            throttle_key,
-            {"message_number": message_number, "timestamp": datetime.now().isoformat()},
-            60,
-        )  # 1 minute throttle window
+        # 🎯 YOLO APPROACH: UUID correlation makes throttling obsolete
+        # We can process ALL webhooks because UUID correlation guarantees zero cascades
 
         # Check if ANY sync is already running for this calendar
         existing_lock = cache.get(global_cache_key)
