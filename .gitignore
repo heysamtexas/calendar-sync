@@ -92,3 +92,4 @@ Thumbs.db
 # Project specific
 /logs/
 /temp/
+src/logs/
