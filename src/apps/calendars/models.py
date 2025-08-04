@@ -303,7 +303,7 @@ class Calendar(models.Model):
     last_synced_at = models.DateTimeField(
         null=True, blank=True, help_text="Last successful sync timestamp"
     )
-    
+
     # Webhook fields (Guilfoyle's minimalist approach - no separate model)
     webhook_channel_id = models.CharField(
         max_length=100, blank=True, null=True,
@@ -317,7 +317,7 @@ class Calendar(models.Model):
         null=True, blank=True,
         help_text="When webhook was last registered with Google"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -427,52 +427,52 @@ class Calendar(models.Model):
             "busy_blocks": stats["busy_blocks"] or 0,
             "regular_events": stats["regular_events"] or 0,
         }
-    
+
     def has_active_webhook(self, buffer_hours=24):
         """Check if calendar has an active webhook that hasn't expired"""
         if not self.webhook_channel_id or not self.webhook_expires_at:
             return False
-        
+
         # Check if webhook expires within buffer time
         buffer_time = timezone.now() + timezone.timedelta(hours=buffer_hours)
         return self.webhook_expires_at > buffer_time
-    
+
     def needs_webhook_renewal(self, buffer_hours=24):
         """Check if webhook needs renewal (expires within buffer time)"""
         if not self.webhook_channel_id or not self.webhook_expires_at:
             return True  # No webhook or expiration info
-        
+
         buffer_time = timezone.now() + timezone.timedelta(hours=buffer_hours)
         return self.webhook_expires_at <= buffer_time
-    
+
     def update_webhook_info(self, channel_id, expires_at):
         """Update webhook information after successful registration"""
         self.webhook_channel_id = channel_id
         self.webhook_expires_at = expires_at
         self.webhook_last_setup = timezone.now()
         self.save(update_fields=['webhook_channel_id', 'webhook_expires_at', 'webhook_last_setup'])
-    
+
     def clear_webhook_info(self):
         """Clear webhook information when webhook is deactivated"""
         self.webhook_channel_id = None
         self.webhook_expires_at = None
         self.save(update_fields=['webhook_channel_id', 'webhook_expires_at'])
-    
+
     def get_webhook_status(self):
         """Get human-readable webhook status"""
         if not self.webhook_channel_id:
             return "No webhook registered"
-        
+
         if not self.webhook_expires_at:
             return "Webhook registered (no expiration info)"
-        
+
         if self.webhook_expires_at <= timezone.now():
             return "Webhook expired"
-        
+
         if self.needs_webhook_renewal():
             hours_left = int((self.webhook_expires_at - timezone.now()).total_seconds() / 3600)
             return f"Webhook expires in {hours_left} hours"
-        
+
         return "Webhook active"
 
     def has_recent_activity(self, days=7):

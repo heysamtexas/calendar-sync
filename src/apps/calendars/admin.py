@@ -1,11 +1,10 @@
 """Django admin configuration for calendar sync models"""
 
 from django.contrib import admin
-from django.utils.html import format_html
 from django.urls import reverse
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 
-from .models import CalendarAccount, Calendar, Event, SyncLog
+from .models import Calendar, CalendarAccount, Event, SyncLog
 
 
 @admin.register(CalendarAccount)
@@ -14,7 +13,7 @@ class CalendarAccountAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'created_at', 'token_expires_at')
     search_fields = ('email', 'user__username', 'google_account_id')
     readonly_fields = ('google_account_id', 'created_at', 'updated_at', 'access_token', 'refresh_token', 'get_last_sync', 'get_sync_summary')
-    
+
     fieldsets = (
         ('Account Info', {
             'fields': ('user', 'email', 'google_account_id', 'is_active')
@@ -31,7 +30,7 @@ class CalendarAccountAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def get_last_sync(self, obj):
         from .models import SyncLog
         last_sync = SyncLog.objects.filter(calendar_account=obj).order_by('-started_at').first()
@@ -39,7 +38,7 @@ class CalendarAccountAdmin(admin.ModelAdmin):
             return f"{last_sync.started_at} ({last_sync.status})"
         return "No syncs yet"
     get_last_sync.short_description = 'Last Sync'
-    
+
     def get_sync_summary(self, obj):
         from .models import Calendar
         calendars = Calendar.objects.filter(calendar_account=obj)
@@ -55,7 +54,7 @@ class CalendarAdmin(admin.ModelAdmin):
     list_filter = ('sync_enabled', 'created_at', 'calendar_account__is_active')
     search_fields = ('name', 'google_calendar_id', 'calendar_account__email')
     readonly_fields = ('google_calendar_id', 'created_at', 'updated_at', 'webhook_info_display')
-    
+
     fieldsets = (
         ('Calendar Info', {
             'fields': ('name', 'google_calendar_id', 'calendar_account', 'sync_enabled')
@@ -68,11 +67,11 @@ class CalendarAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def calendar_account_email(self, obj):
         return obj.calendar_account.email
     calendar_account_email.short_description = 'Account Email'
-    
+
     def webhook_status(self, obj):
         if obj.has_active_webhook():
             return format_html('<span style="color: green;">✓ Active</span>')
@@ -81,7 +80,7 @@ class CalendarAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: gray;">No webhook</span>')
     webhook_status.short_description = 'Webhook Status'
-    
+
     def webhook_info_display(self, obj):
         if obj.webhook_channel_id:
             return format_html(
@@ -105,7 +104,7 @@ class EventAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description', 'google_event_id', 'calendar__name')
     readonly_fields = ('google_event_id', 'created_at', 'updated_at', 'source_event_link', 'busy_block_tag')
     date_hierarchy = 'start_time'
-    
+
     fieldsets = (
         ('Event Info', {
             'fields': ('title', 'description', 'calendar', 'google_event_id')
@@ -125,15 +124,15 @@ class EventAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def title_short(self, obj):
         return obj.title[:50] + '...' if len(obj.title) > 50 else obj.title
     title_short.short_description = 'Title'
-    
+
     def calendar_name(self, obj):
         return obj.calendar.name
     calendar_name.short_description = 'Calendar'
-    
+
     def source_event_link(self, obj):
         if obj.source_event:
             url = reverse('admin:calendars_event_change', args=[obj.source_event.id])
@@ -149,7 +148,7 @@ class SyncLogAdmin(admin.ModelAdmin):
     search_fields = ('calendar_account__email', 'error_message')
     readonly_fields = ('started_at', 'completed_at', 'duration_display', 'stats_display')
     date_hierarchy = 'started_at'
-    
+
     fieldsets = (
         ('Sync Info', {
             'fields': ('calendar_account', 'sync_type', 'status', 'started_at', 'completed_at', 'duration_display')
@@ -162,26 +161,26 @@ class SyncLogAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def calendar_account_email(self, obj):
         return obj.calendar_account.email
     calendar_account_email.short_description = 'Account Email'
-    
+
     def duration(self, obj):
         if obj.completed_at and obj.started_at:
             delta = obj.completed_at - obj.started_at
             return f"{delta.total_seconds():.1f}s"
         return 'In progress' if obj.status == 'in_progress' else 'Unknown'
     duration.short_description = 'Duration'
-    
+
     def busy_blocks_summary(self, obj):
         return f"C:{obj.busy_blocks_created} U:{obj.busy_blocks_updated} D:{obj.busy_blocks_deleted}"
     busy_blocks_summary.short_description = 'Busy Blocks (C/U/D)'
-    
+
     def duration_display(self, obj):
         return self.duration(obj)
     duration_display.short_description = 'Duration'
-    
+
     def stats_display(self, obj):
         return format_html(
             '<strong>Events:</strong> Created: {}, Updated: {}, Deleted: {}<br>'

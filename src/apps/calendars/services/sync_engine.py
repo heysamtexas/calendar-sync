@@ -29,8 +29,8 @@ class SyncEngine:
         }
 
     def sync_all_calendars(self, verbose: bool = False) -> dict:
-        """Sync all active calendars"""
-        logger.info("Starting full calendar sync")
+        """Sync all active calendars (scheduled sync with cross-calendar busy blocks)"""
+        logger.info("Starting full scheduled calendar sync (includes cross-calendar busy blocks)")
 
         active_calendars = Calendar.objects.filter(
             sync_enabled=True, calendar_account__is_active=True
@@ -47,7 +47,7 @@ class SyncEngine:
                         f"Syncing calendar: {calendar.name} ({calendar.google_calendar_id})"
                     )
 
-                self._sync_single_calendar(calendar)
+                self._sync_single_calendar(calendar, webhook_triggered=False)
                 self.sync_results["calendars_processed"] += 1
 
             except Exception as e:
@@ -65,21 +65,23 @@ class SyncEngine:
                 # Mark as completed with error to set the completed_at timestamp
                 sync_log.mark_completed(status="error", error_message=error_msg)
 
-        # Now create busy blocks across calendars
+        # Now create busy blocks across calendars (scheduled sync only)
+        logger.info("Starting cross-calendar busy block creation for scheduled sync")
         self._create_cross_calendar_busy_blocks()
 
-        logger.info(f"Sync complete: {self.sync_results}")
+        logger.info(f"Scheduled sync complete: {self.sync_results}")
         return self.sync_results
 
-    def sync_specific_calendar(self, calendar_id: int) -> dict:
+    def sync_specific_calendar(self, calendar_id: int, webhook_triggered: bool = False) -> dict:
         """Sync a specific calendar by ID"""
         try:
             calendar = Calendar.objects.get(
                 id=calendar_id, sync_enabled=True, calendar_account__is_active=True
             )
 
-            logger.info(f"Syncing specific calendar: {calendar.name}")
-            self._sync_single_calendar(calendar)
+            sync_type = "webhook-triggered" if webhook_triggered else "scheduled"
+            logger.info(f"Syncing specific calendar ({sync_type}): {calendar.name}")
+            self._sync_single_calendar(calendar, webhook_triggered=webhook_triggered)
             self.sync_results["calendars_processed"] = 1
 
             return self.sync_results
@@ -90,8 +92,11 @@ class SyncEngine:
             self.sync_results["errors"].append(error_msg)
             return self.sync_results
 
-    def _sync_single_calendar(self, calendar: Calendar):
+    def _sync_single_calendar(self, calendar: Calendar, webhook_triggered: bool = False):
         """Sync events for a single calendar"""
+        # Store webhook context for use in other methods
+        self.webhook_triggered = webhook_triggered
+        
         client = GoogleCalendarClient(calendar.calendar_account)
 
         # Get time range for sync (30 days past to 90 days future)
@@ -548,9 +553,9 @@ def sync_all_calendars(verbose: bool = False) -> dict:
 
 
 def sync_calendar(calendar_id: int) -> dict:
-    """Sync specific calendar - utility function"""
+    """Sync specific calendar - utility function for scheduled syncs"""
     engine = SyncEngine()
-    return engine.sync_specific_calendar(calendar_id)
+    return engine.sync_specific_calendar(calendar_id, webhook_triggered=False)
 
 
 def reset_calendar_busy_blocks(calendar_id: int) -> dict:

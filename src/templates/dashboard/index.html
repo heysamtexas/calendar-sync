@@ -139,7 +139,7 @@
         <a href="{% url 'accounts:connect' %}" class="btn btn-success" aria-describedby="connect-help">Connect New Account</a>
         <span id="connect-help" class="sr-only">Add a new Google Calendar account to sync</span>
         {% if calendar_accounts %}
-            <form method="post" action="{% url 'dashboard:global_sync' %}" style="display: inline;">
+            <form method="post" action="{% url 'dashboard:global_sync' %}" class="inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-success" aria-describedby="sync-help">Sync All Calendars</button>
             </form>

@@ -320,7 +320,7 @@ class SyncEngineTest(TestCase):
             # Test sync_calendar function
             result = sync_calendar(123)
             self.assertEqual(result, {"test": "result"})
-            mock_engine.sync_specific_calendar.assert_called_with(123)
+            mock_engine.sync_specific_calendar.assert_called_with(123, webhook_triggered=False)
 
     @patch("apps.calendars.services.sync_engine.GoogleCalendarClient")
     def test_reset_calendar_busy_blocks(self, mock_client_class):

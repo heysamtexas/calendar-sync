@@ -5,10 +5,11 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from django.utils.html import format_html
 
+
 # Enhance the default User admin with calendar-specific info
 class CalendarUserAdmin(BaseUserAdmin):
     """Enhanced User admin showing calendar sync info"""
-    
+
     def get_calendar_accounts(self, obj):
         from apps.calendars.models import CalendarAccount
         accounts = CalendarAccount.objects.filter(user=obj)
@@ -20,7 +21,7 @@ class CalendarUserAdmin(BaseUserAdmin):
             return format_html("<br>".join(account_list))
         return "No calendar accounts"
     get_calendar_accounts.short_description = 'Calendar Accounts'
-    
+
     def get_sync_enabled_calendars(self, obj):
         from apps.calendars.models import Calendar
         calendars = Calendar.objects.filter(
@@ -29,10 +30,10 @@ class CalendarUserAdmin(BaseUserAdmin):
         )
         return calendars.count()
     get_sync_enabled_calendars.short_description = 'Sync-Enabled Calendars'
-    
+
     # Add calendar info to the user list view
     list_display = BaseUserAdmin.list_display + ('get_sync_enabled_calendars',)
-    
+
     # Add calendar info to the user detail view
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Calendar Sync Info', {
@@ -40,7 +41,7 @@ class CalendarUserAdmin(BaseUserAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     readonly_fields = BaseUserAdmin.readonly_fields + ('get_calendar_accounts',)
 
 # Unregister the default User admin and register our enhanced version

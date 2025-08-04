@@ -47,7 +47,7 @@ WEBHOOK_BASE_URL = env("WEBHOOK_BASE_URL", default="http://localhost:8000")
 # CSRF Configuration for webhooks
 # Django 4.0+ requires trusted origins for external POST requests
 CSRF_TRUSTED_ORIGINS = [
-    origin.strip() 
+    origin.strip()
     for origin in env("CSRF_TRUSTED_ORIGINS", default="http://localhost:8000,https://localhost:8000").split(",")
     if origin.strip()
 ]

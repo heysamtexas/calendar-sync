@@ -124,6 +124,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Handle copy-to-clipboard buttons
+    document.addEventListener('click', function(evt) {
+        if (evt.target.matches('.copy-id-btn')) {
+            evt.preventDefault();
+            const calendarId = evt.target.getAttribute('data-calendar-id');
+            if (calendarId) {
+                copyToClipboard(calendarId);
+            }
+        }
+    });
+    
+    // Handle disconnect account confirmation
+    document.addEventListener('click', function(evt) {
+        if (evt.target.matches('.disconnect-account-btn')) {
+            const confirmMessage = evt.target.getAttribute('data-confirm-message');
+            if (confirmMessage && !confirm(confirmMessage)) {
+                evt.preventDefault();
+            }
+        }
+    });
+    
 });
 
 // Copy to clipboard function for Google Calendar IDs

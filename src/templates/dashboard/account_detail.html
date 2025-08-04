@@ -80,7 +80,7 @@
                         </span>
                         <button type="button" 
                                 class="copy-id-btn" 
-                                onclick="copyToClipboard('{{ calendar.google_calendar_id }}')"
+                                data-calendar-id="{{ calendar.google_calendar_id }}"
                                 title="Copy full Google Calendar ID"
                                 aria-label="Copy Google Calendar ID for {{ calendar.name }}">
                             📋
@@ -187,8 +187,8 @@
             <a href="{% url 'dashboard:refresh_calendars' account.id %}" class="btn" aria-describedby="refresh-help">Refresh Calendars</a>
             <span id="refresh-help" class="sr-only">Update calendar list from Google</span>
             
-            <a href="{% url 'accounts:disconnect_account' account.id %}" class="btn btn-danger" 
-               onclick="return confirm('Are you sure you want to disconnect this account? This will remove all calendars and sync data.')" 
+            <a href="{% url 'accounts:disconnect_account' account.id %}" class="btn btn-danger disconnect-account-btn" 
+               data-confirm-message="Are you sure you want to disconnect this account? This will remove all calendars and sync data."
                aria-describedby="disconnect-help">Disconnect Account</a>
             <span id="disconnect-help" class="sr-only">Permanently disconnect and remove this Google Calendar account</span>
         {% else %}
