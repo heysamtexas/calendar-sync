@@ -413,3 +413,65 @@ class SyncEngineTest(TestCase):
         self.assertIn("🔒 Busy", call_args[0][1])  # title
         self.assertEqual(call_args[0][2], event.start_time)  # start time
         self.assertEqual(call_args[0][3], event.end_time)  # end time
+
+    @patch("apps.calendars.services.sync_engine.GoogleCalendarClient")
+    def test_busy_block_tag_length_limit(self, mock_client_class):
+        """Test that busy block tags respect the 200 character database limit"""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        # Create test accounts and calendars
+        from apps.accounts.models import UserProfile
+        
+        profile, created = UserProfile.objects.get_or_create(
+            user=self.user, defaults={'sync_enabled': True}
+        )
+        if not created:
+            profile.sync_enabled = True
+            profile.save()
+        
+        calendar1 = Calendar.objects.create(
+            calendar_account=self.account,
+            google_calendar_id="very-long-google-calendar-id-that-could-cause-issues@group.calendar.google.com",
+            name="Source Calendar",
+            sync_enabled=True,
+        )
+        
+        calendar2 = Calendar.objects.create(
+            calendar_account=self.account,
+            google_calendar_id="another-very-long-google-calendar-id@group.calendar.google.com",
+            name="Target Calendar", 
+            sync_enabled=True,
+        )
+
+        # Create source event
+        event = Event.objects.create(
+            calendar=calendar1,
+            google_event_id="extremely-long-google-event-id-that-would-normally-cause-busy-block-tag-to-exceed-database-limit-12345",
+            title="GZ CMS & PME daily-ish standup",
+            start_time=timezone.now() + timedelta(days=1),
+            end_time=timezone.now() + timedelta(days=1, hours=1),
+            is_busy_block=False,
+        )
+
+        # Mock busy block creation
+        mock_client.create_busy_block.return_value = {"id": "busy_block_id"}
+        mock_client.find_system_events.return_value = []
+        mock_client.batch_delete_events.return_value = {}
+
+        engine = SyncEngine()
+        engine._create_cross_calendar_busy_blocks()
+
+        # Verify busy blocks were created in database
+        busy_blocks = Event.objects.filter(is_busy_block=True)
+        self.assertGreaterEqual(busy_blocks.count(), 1, "At least one busy block should be created")
+        
+        # Verify all busy block tags are within the database limit
+        for busy_block in busy_blocks:
+            self.assertLessEqual(len(busy_block.busy_block_tag), 200, 
+                               f"Busy block tag '{busy_block.busy_block_tag}' exceeds 200 character limit")
+            
+            # Verify the tag follows the expected format
+            self.assertIn("CalSync [source:", busy_block.busy_block_tag)
+            self.assertIn(":event", busy_block.busy_block_tag)
+            self.assertIn("]", busy_block.busy_block_tag)

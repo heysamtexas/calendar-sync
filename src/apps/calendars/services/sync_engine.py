@@ -354,6 +354,9 @@ class SyncEngine:
                         busy_block_description,
                     )
 
+                    # Generate proper busy block tag using the BusyBlock utility
+                    busy_block_tag = BusyBlock.generate_tag(target_calendar.id, event.id)
+                    
                     # Save busy block in our database with meeting status from source
                     Event.objects.create(
                         calendar=target_calendar,
@@ -365,7 +368,7 @@ class SyncEngine:
                         is_busy_block=True,
                         is_meeting_invite=event.is_meeting_invite,  # Inherit from source event
                         source_event=event,
-                        busy_block_tag=busy_block_description,
+                        busy_block_tag=busy_block_tag,
                     )
 
                     self.sync_results["busy_blocks_created"] += 1
@@ -474,6 +477,9 @@ class SyncEngine:
                     busy_block_description,
                 )
 
+                # Generate proper busy block tag using the BusyBlock utility
+                busy_block_tag = BusyBlock.generate_tag(target_calendar.id, event.id)
+                
                 # Save busy block in our database with meeting status from source
                 Event.objects.create(
                     calendar=target_calendar,
@@ -485,7 +491,7 @@ class SyncEngine:
                     is_busy_block=True,
                     is_meeting_invite=event.is_meeting_invite,  # Inherit from source event
                     source_event=event,
-                    busy_block_tag=busy_block_description,
+                    busy_block_tag=busy_block_tag,
                 )
 
                 self.sync_results["busy_blocks_created"] += 1
