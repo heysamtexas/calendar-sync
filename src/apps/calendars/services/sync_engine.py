@@ -30,7 +30,9 @@ class SyncEngine:
 
     def sync_all_calendars(self, verbose: bool = False) -> dict:
         """Sync all active calendars (scheduled sync with cross-calendar busy blocks)"""
-        logger.info("Starting full scheduled calendar sync (includes cross-calendar busy blocks)")
+        logger.info(
+            "Starting full scheduled calendar sync (includes cross-calendar busy blocks)"
+        )
 
         active_calendars = Calendar.objects.filter(
             sync_enabled=True, calendar_account__is_active=True
@@ -42,6 +44,18 @@ class SyncEngine:
 
         for calendar in active_calendars:
             try:
+                # Global sync coordination: Skip if webhook is already syncing this calendar
+                from django.core.cache import cache
+
+                global_cache_key = f"calendar_sync_lock_{calendar.id}"
+
+                existing_sync = cache.get(global_cache_key)
+                if existing_sync:
+                    logger.info(
+                        f"🔒 SYNC COORDINATION: Skipping calendar {calendar.name} - already being synced by {existing_sync}"
+                    )
+                    continue
+
                 if verbose:
                     logger.info(
                         f"Syncing calendar: {calendar.name} ({calendar.google_calendar_id})"
@@ -72,17 +86,54 @@ class SyncEngine:
         logger.info(f"Scheduled sync complete: {self.sync_results}")
         return self.sync_results
 
-    def sync_specific_calendar(self, calendar_id: int, webhook_triggered: bool = False) -> dict:
-        """Sync a specific calendar by ID"""
+    def sync_specific_calendar(
+        self, calendar_id: int, webhook_triggered: bool = False
+    ) -> dict:
+        """Sync a specific calendar by ID with global sync coordination"""
         try:
             calendar = Calendar.objects.get(
                 id=calendar_id, sync_enabled=True, calendar_account__is_active=True
             )
 
             sync_type = "webhook-triggered" if webhook_triggered else "scheduled"
+
+            # Global sync coordination for scheduled syncs
+            if not webhook_triggered:
+                from django.core.cache import cache
+
+                global_cache_key = f"calendar_sync_lock_{calendar_id}"
+
+                # Check if webhook sync is already running
+                existing_sync = cache.get(global_cache_key)
+                if existing_sync:
+                    logger.info(
+                        f"🔒 SYNC COORDINATION: Skipping scheduled sync - calendar {calendar.name} already being synced by {existing_sync}"
+                    )
+                    return self.sync_results
+
+                # Set scheduled sync lock (shorter duration than webhook)
+                logger.info(
+                    f"🔒 SYNC COORDINATION: Acquiring scheduled sync lock for calendar {calendar.name}"
+                )
+                cache.set(global_cache_key, "scheduled", 90)  # 1.5 minutes
+
             logger.info(f"Syncing specific calendar ({sync_type}): {calendar.name}")
-            self._sync_single_calendar(calendar, webhook_triggered=webhook_triggered)
-            self.sync_results["calendars_processed"] = 1
+
+            try:
+                self._sync_single_calendar(
+                    calendar, webhook_triggered=webhook_triggered
+                )
+                self.sync_results["calendars_processed"] = 1
+            finally:
+                # Clean up scheduled sync lock (webhook locks are cleaned up in webhook handler)
+                if not webhook_triggered:
+                    from django.core.cache import cache
+
+                    global_cache_key = f"calendar_sync_lock_{calendar_id}"
+                    logger.info(
+                        f"🔒 SYNC COORDINATION: Releasing scheduled sync lock for calendar {calendar.name}"
+                    )
+                    cache.delete(global_cache_key)
 
             return self.sync_results
 
@@ -92,11 +143,13 @@ class SyncEngine:
             self.sync_results["errors"].append(error_msg)
             return self.sync_results
 
-    def _sync_single_calendar(self, calendar: Calendar, webhook_triggered: bool = False):
+    def _sync_single_calendar(
+        self, calendar: Calendar, webhook_triggered: bool = False
+    ):
         """Sync events for a single calendar"""
         # Store webhook context for use in other methods
         self.webhook_triggered = webhook_triggered
-        
+
         client = GoogleCalendarClient(calendar.calendar_account)
 
         # Get time range for sync (30 days past to 90 days future)
@@ -363,7 +416,9 @@ class SyncEngine:
                     )
 
                     # Generate proper busy block tag using the BusyBlock utility
-                    busy_block_tag = BusyBlock.generate_tag(target_calendar.id, event.id)
+                    busy_block_tag = BusyBlock.generate_tag(
+                        target_calendar.id, event.id
+                    )
 
                     # Save busy block in our database with meeting status from source
                     Event.objects.create(

@@ -71,19 +71,35 @@ class GoogleWebhookView(View):
             f"Webhook triggered for calendar {calendar_id}, channel {channel_id}"
         )
 
-        # Enhanced rate limiting: Use operation-specific cache keys to isolate webhook and scheduled syncs
+        # Global sync coordination: Prevent conflicts between webhook and scheduled syncs
         from django.core.cache import cache
 
-        cache_key = f"webhook_sync_{channel_id}"
+        # Use calendar-based cache key (not operation-specific) for global coordination
+        global_cache_key = f"calendar_sync_lock_{calendar_id}"
+        webhook_cache_key = f"webhook_sync_{channel_id}"
 
-        if cache.get(cache_key):
+        # Check if ANY sync is already running for this calendar
+        existing_lock = cache.get(global_cache_key)
+        if existing_lock:
             logger.info(
-                f"Skipping webhook - already processing webhook sync for channel {channel_id}"
+                f"🔒 SYNC COORDINATION: Skipping webhook - calendar {calendar_id} already being synced by {existing_lock} operation"
             )
             return
 
-        # Set processing flag for 60 seconds (longer to prevent rapid duplicate processing)
-        cache.set(cache_key, True, 60)
+        # Check webhook-specific rate limiting
+        if cache.get(webhook_cache_key):
+            logger.info(
+                f"🔒 WEBHOOK RATE LIMIT: Skipping webhook - already processing webhook sync for channel {channel_id}"
+            )
+            return
+
+        # Set global sync lock to prevent scheduled syncs from interfering
+        logger.info(
+            f"🔒 SYNC COORDINATION: Acquiring webhook sync lock for calendar {calendar_id}"
+        )
+        cache.set(global_cache_key, "webhook", 120)  # 2 minutes for webhook priority
+        # Set webhook-specific flag to prevent duplicate webhook processing
+        cache.set(webhook_cache_key, True, 60)
 
         try:
             from apps.calendars.models import Calendar
@@ -177,8 +193,12 @@ class GoogleWebhookView(View):
                 logger.exception("Full webhook sync error traceback:")
             # Fail silently - webhooks should never return errors to Google
         finally:
-            # Clear processing flag
-            cache.delete(cache_key)
+            # Clear processing flags
+            logger.info(
+                f"🔒 SYNC COORDINATION: Releasing webhook sync lock for calendar {calendar_id}"
+            )
+            cache.delete(webhook_cache_key)
+            cache.delete(global_cache_key)
 
     def _should_skip_cross_calendar_sync(self, sync_engine, calendar):
         """
