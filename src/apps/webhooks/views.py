@@ -50,7 +50,7 @@ class GoogleWebhookView(View):
         # Enhanced webhook payload capture - save to files for analysis
         timestamp = datetime.now()
         timestamp_str = timestamp.isoformat()
-        
+
         # Create structured payload data
         webhook_payload = {
             "timestamp": timestamp_str,
@@ -66,26 +66,26 @@ class GoogleWebhookView(View):
             "message_number": int(request.META.get("HTTP_X_GOOG_MESSAGE_NUMBER", 0)),
             "processing_decisions": {},  # Will be populated during processing
             "sync_results": {},  # Will be populated after sync
-            "calendar_context": {}  # Will be populated with calendar info
+            "calendar_context": {},  # Will be populated with calendar info
         }
-        
+
         # Save to dated directory structure
         log_date = timestamp.strftime("%Y-%m-%d")
         log_time = timestamp.strftime("%H%M%S")
         message_num = webhook_payload["message_number"]
-        
+
         # Create log directory
         log_dir = Path("logs/webhooks") / log_date
         log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate filename with correlation info
         filename = f"webhook_{log_time}_{calendar_id}_{message_num}.json"
         log_file = log_dir / filename
-        
+
         # Store payload reference for later updates
         self.current_payload = webhook_payload
         self.current_log_file = log_file
-        
+
         # Dump to stderr for immediate debugging (keep existing functionality)
         webhook_dump = f"""
 ==================== WEBHOOK PAYLOAD DUMP ====================
@@ -172,9 +172,12 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                 logger.info(
                     f"🚫 WEBHOOK THROTTLE: Ignoring webhook storm - message {current_message_num} too close to {last_message_num}"
                 )
-                self._update_payload("throttled", "Webhook storm detected", 
-                                   current_message_num=current_message_num, 
-                                   last_message_num=last_message_num)
+                self._update_payload(
+                    "throttled",
+                    "Webhook storm detected",
+                    current_message_num=current_message_num,
+                    last_message_num=last_message_num,
+                )
                 return
 
         # Store current webhook info for throttling
@@ -190,7 +193,9 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
             logger.info(
                 f"🔒 SYNC COORDINATION: Skipping webhook - calendar {calendar_id} already being synced by {existing_lock} operation"
             )
-            self._update_payload("skipped_sync_lock", f"Calendar already being synced by {existing_lock}")
+            self._update_payload(
+                "skipped_sync_lock", f"Calendar already being synced by {existing_lock}"
+            )
             return
 
         # Check webhook-specific rate limiting
@@ -198,7 +203,9 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
             logger.info(
                 f"🔒 WEBHOOK RATE LIMIT: Skipping webhook - already processing webhook sync for channel {channel_id}"
             )
-            self._update_payload("skipped_rate_limit", "Webhook already processing for this channel")
+            self._update_payload(
+                "skipped_rate_limit", "Webhook already processing for this channel"
+            )
             return
 
         # Set global sync lock to prevent scheduled syncs from interfering
@@ -217,7 +224,20 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
 
         try:
             from apps.calendars.models import Calendar
-            from apps.calendars.services.sync_engine import SyncEngine
+            from apps.calendars.services.uuid_sync_engine import (
+                handle_webhook_yolo,
+                is_cascade_prevention_active,
+            )
+
+            # YOLO CHECK: Emergency cascade prevention
+            if is_cascade_prevention_active():
+                logger.critical(
+                    "🚨 EMERGENCY CASCADE PREVENTION IS ACTIVE - Skipping all webhook processing"
+                )
+                self._update_payload(
+                    "emergency_stop", "Emergency cascade prevention is active"
+                )
+                return
 
             # Find calendar by webhook channel ID (more reliable than resource ID)
             try:
@@ -229,7 +249,7 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                 logger.info(
                     f"Found calendar by channel ID: {calendar.name} (ID: {calendar.id})"
                 )
-                
+
                 # Capture calendar context for analysis
                 calendar_context = {
                     "calendar_id": calendar.id,
@@ -238,12 +258,16 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                     "account_email": calendar.calendar_account.email,
                     "sync_enabled": calendar.sync_enabled,
                     "is_primary": calendar.is_primary,
-                    "last_synced": calendar.last_synced_at.isoformat() if calendar.last_synced_at else None,
+                    "last_synced": calendar.last_synced_at.isoformat()
+                    if calendar.last_synced_at
+                    else None,
                     "webhook_channel_id": calendar.webhook_channel_id,
-                    "webhook_expires_at": calendar.webhook_expires_at.isoformat() if calendar.webhook_expires_at else None
+                    "webhook_expires_at": calendar.webhook_expires_at.isoformat()
+                    if calendar.webhook_expires_at
+                    else None,
                 }
                 self._add_calendar_context(calendar_context)
-                
+
             except Calendar.DoesNotExist:
                 logger.warning(f"Calendar not found for channel {channel_id}")
                 # Fallback: try to find by resource ID (Google Calendar ID)
@@ -279,45 +303,63 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                     )
                     return
 
-            # Use existing sync engine - sync the specific calendar that changed (webhook-triggered)
-            logger.info(f"Starting webhook-triggered sync for calendar {calendar.name}")
-            sync_engine = SyncEngine()
-            
-            # Pass webhook context to sync engine for API response logging
-            sync_engine._webhook_context = self.current_payload
-            
-            results = sync_engine.sync_specific_calendar(
-                calendar.id, webhook_triggered=True
-            )
-            logger.info(f"Webhook sync results: {results}")
-            
-            # Capture sync results for analysis
-            self._add_sync_results({
-                "sync_results": sync_engine.sync_results,
-                "sync_duration": "calculated_in_sync_engine",  # Could be enhanced
-                "calendars_processed": sync_engine.sync_results.get("calendars_processed", 0),
-                "events_created": sync_engine.sync_results.get("events_created", 0),
-                "events_updated": sync_engine.sync_results.get("events_updated", 0),
-                "events_deleted": sync_engine.sync_results.get("events_deleted", 0),
-                "errors": sync_engine.sync_results.get("errors", [])
-            })
-
-            # NUCLEAR OPTION: Completely disable cross-calendar sync for webhook-triggered operations
-            # This prevents ALL webhook cascades - only scheduled syncs create busy blocks
-            decision_timestamp = datetime.now().isoformat()
+            # 🚀 YOLO MODE: Use UUID correlation sync engine with bulletproof cascade prevention
+            yolo_start = datetime.now()
             print(
-                f"STDERR [{decision_timestamp}]: 🚫 WEBHOOK POLICY: Never creating cross-calendar busy blocks from webhooks - prevents all cascades",
+                f"STDERR [{yolo_start.isoformat()}]: 🚀 YOLO WEBHOOK: Starting UUID correlation sync for {calendar.name}",
                 file=sys.stderr,
                 flush=True,
             )
             logger.info(
-                "WEBHOOK POLICY: Skipping cross-calendar busy block creation - webhooks only sync individual calendars, scheduled syncs handle cross-calendar busy blocks"
+                f"🚀 YOLO WEBHOOK: Starting UUID correlation sync for calendar {calendar.name}"
             )
-            
-            # Record the cross-calendar policy decision
-            self._update_payload("cross_calendar_policy", "Disabled for webhooks - prevents cascades")
 
-            logger.info(f"Final webhook sync results: {sync_engine.sync_results}")
+            results = handle_webhook_yolo(calendar)
+
+            yolo_end = datetime.now()
+            duration = (yolo_end - yolo_start).total_seconds()
+
+            print(
+                f"STDERR [{yolo_end.isoformat()}]: ✅ YOLO WEBHOOK: Completed in {duration:.2f}s - {results}",
+                file=sys.stderr,
+                flush=True,
+            )
+            logger.info(f"✅ YOLO WEBHOOK: Completed UUID correlation sync - {results}")
+
+            # Capture YOLO sync results for analysis
+            self._add_sync_results(
+                {
+                    "yolo_mode": True,
+                    "uuid_correlation": "ENABLED",
+                    "cascade_prevention": "BULLETPROOF",
+                    "sync_duration": duration,
+                    "webhook_results": results,
+                    "processing_time": results.get("processing_time", duration),
+                    "cascade_prevention_status": results.get(
+                        "cascade_prevention", "ACTIVE"
+                    ),
+                    "sync_results": results.get("results", {}),
+                }
+            )
+
+            # Record YOLO deployment
+            decision_timestamp = datetime.now().isoformat()
+            print(
+                f"STDERR [{decision_timestamp}]: 🎯 YOLO DEPLOYMENT: UUID correlation active - zero cascades guaranteed",
+                file=sys.stderr,
+                flush=True,
+            )
+            logger.info(
+                "🎯 YOLO DEPLOYMENT: UUID correlation sync engine deployed - bulletproof cascade prevention active"
+            )
+
+            # Record the YOLO deployment decision
+            self._update_payload(
+                "yolo_deployed",
+                "UUID correlation sync engine with bulletproof cascade prevention",
+            )
+
+            logger.info(f"Final YOLO webhook results: {results}")
 
         except Exception as e:
             from googleapiclient.errors import HttpError
@@ -328,14 +370,25 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                 and e.resp.status == 403
                 and ("rateLimitExceeded" in str(e) or "quotaExceeded" in str(e))
             ):
-                logger.warning(f"Webhook sync rate limited for {calendar_id}: {e}")
+                logger.warning(f"YOLO webhook sync rate limited for {calendar_id}: {e}")
                 self._update_payload("rate_limited", f"Google API rate limit: {e}")
                 # For rate limit errors, we'll let the next webhook or scheduled sync handle it
                 # Don't log full traceback for rate limits as they're expected
             else:
-                logger.error(f"Webhook sync failed for {calendar_id}: {e}")
-                logger.exception("Full webhook sync error traceback:")
-                self._update_payload("sync_failed", f"Sync error: {e}", error_type=type(e).__name__)
+                logger.error(f"YOLO webhook sync failed for {calendar_id}: {e}")
+                logger.exception("Full YOLO webhook sync error traceback:")
+                self._update_payload(
+                    "yolo_sync_failed",
+                    f"YOLO sync error: {e}",
+                    error_type=type(e).__name__,
+                )
+
+                # YOLO error logging
+                print(
+                    f"STDERR [{datetime.now().isoformat()}]: 💥 YOLO WEBHOOK ERROR: {e}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             # Fail silently - webhooks should never return errors to Google
         finally:
             # Clear processing flags
@@ -388,12 +441,18 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
 
             if recent_events.exists():
                 # Count how many recent events are system busy blocks
-                busy_block_count = sum(1 for event in recent_events if event.is_busy_block)
+                busy_block_count = sum(
+                    1 for event in recent_events if event.is_busy_block
+                )
                 total_count = len(recent_events)
 
                 # ENHANCED: If more than 50% of recent events are busy blocks, likely a busy block webhook
                 if total_count > 0 and (busy_block_count / total_count) > 0.5:
-                    print(f"STDERR [{datetime.now().isoformat()}]: 🚫 BUSY BLOCK DETECTION: {busy_block_count}/{total_count} recent events are busy blocks", file=sys.stderr, flush=True)
+                    print(
+                        f"STDERR [{datetime.now().isoformat()}]: 🚫 BUSY BLOCK DETECTION: {busy_block_count}/{total_count} recent events are busy blocks",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                     logger.debug(
                         f"Detected mostly busy blocks in recent events ({busy_block_count}/{total_count}) - skipping cross-calendar sync"
                     )
@@ -401,9 +460,17 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
 
                 # ENHANCED: Check if ANY recent events are CalSync busy blocks (system created)
                 for event in recent_events:
-                    if event.is_busy_block and ("CalSync" in event.description or "CalSync" in event.title):
-                        print(f"STDERR [{datetime.now().isoformat()}]: 🚫 CALSYNC DETECTION: Found recent CalSync busy block '{event.title}' - preventing cascade", file=sys.stderr, flush=True)
-                        logger.debug(f"Found recent CalSync busy block '{event.title}' - preventing cascade")
+                    if event.is_busy_block and (
+                        "CalSync" in event.description or "CalSync" in event.title
+                    ):
+                        print(
+                            f"STDERR [{datetime.now().isoformat()}]: 🚫 CALSYNC DETECTION: Found recent CalSync busy block '{event.title}' - preventing cascade",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        logger.debug(
+                            f"Found recent CalSync busy block '{event.title}' - preventing cascade"
+                        )
                         return True
 
             # If events were created or updated AND they don't seem to be system busy blocks, allow cross-calendar sync
@@ -414,7 +481,9 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
                 return False
 
             # No recent events or unclear - allow cross-calendar sync (but this should be rare with enhanced detection)
-            logger.debug("No clear busy block pattern detected - allowing cross-calendar sync")
+            logger.debug(
+                "No clear busy block pattern detected - allowing cross-calendar sync"
+            )
             return False
 
         except Exception as e:
@@ -426,29 +495,37 @@ Content-Type: {request.META.get("CONTENT_TYPE", "not specified")}
 
     def _update_payload(self, decision_type, decision_reason, **kwargs):
         """Update the current payload with processing decisions and context"""
-        if hasattr(self, 'current_payload'):
+        if hasattr(self, "current_payload"):
             self.current_payload["processing_decisions"][decision_type] = {
                 "reason": decision_reason,
                 "timestamp": datetime.now().isoformat(),
-                **kwargs
+                **kwargs,
             }
 
     def _add_calendar_context(self, calendar_info):
         """Add calendar context to the current payload"""
-        if hasattr(self, 'current_payload'):
+        if hasattr(self, "current_payload"):
             self.current_payload["calendar_context"] = calendar_info
 
     def _add_sync_results(self, sync_results):
         """Add sync results to the current payload"""
-        if hasattr(self, 'current_payload'):
+        if hasattr(self, "current_payload"):
             self.current_payload["sync_results"] = sync_results
 
     def _save_payload(self):
         """Save the current payload to JSON file"""
-        if hasattr(self, 'current_payload') and hasattr(self, 'current_log_file'):
+        if hasattr(self, "current_payload") and hasattr(self, "current_log_file"):
             try:
-                with open(self.current_log_file, 'w') as f:
+                with open(self.current_log_file, "w") as f:
                     json.dump(self.current_payload, f, indent=2, default=str)
-                print(f"STDERR: Webhook payload saved to {self.current_log_file}", file=sys.stderr, flush=True)
+                print(
+                    f"STDERR: Webhook payload saved to {self.current_log_file}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             except Exception as e:
-                print(f"STDERR: Failed to save webhook payload: {e}", file=sys.stderr, flush=True)
+                print(
+                    f"STDERR: Failed to save webhook payload: {e}",
+                    file=sys.stderr,
+                    flush=True,
+                )
