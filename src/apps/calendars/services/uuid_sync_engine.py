@@ -334,10 +334,15 @@ class UUIDCorrelationSyncEngine:
             # Create busy block in Google Calendar with UUID correlation
             client = GoogleCalendarClient(target_calendar.calendar_account)
             
-            # CRITICAL: Clean title to prevent cascade prefixes
-            clean_title = source_event_state.title or "Event"
+            # CRITICAL: Clean title to prevent cascade prefixes and UUID contamination
+            from apps.calendars.utils import UUIDCorrelationUtils
+            
+            raw_title = source_event_state.title or "Event"
+            # Remove invisible UUID markers first
+            clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
+            # Remove "Busy - " prefix if present
             if clean_title.startswith('Busy - '):
-                clean_title = clean_title[7:]  # Remove existing "Busy - " prefix
+                clean_title = clean_title[7:]
             
             event_data = {
                 'summary': f'Busy - {clean_title}',
@@ -601,10 +606,15 @@ class UUIDCorrelationSyncEngine:
         try:
             with transaction.atomic():
                 # Update busy block database record first
-                # CRITICAL: Clean source title to prevent "Busy - Busy -" cascade
-                clean_title = source_event.title or 'Event'
+                # CRITICAL: Clean source title to prevent "Busy - Busy -" cascade and UUID contamination
+                from apps.calendars.utils import UUIDCorrelationUtils
+                
+                raw_title = source_event.title or 'Event'
+                # Remove invisible UUID markers first
+                clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
+                # Remove "Busy - " prefix if present
                 if clean_title.startswith('Busy - '):
-                    clean_title = clean_title[7:]  # Remove "Busy - " prefix
+                    clean_title = clean_title[7:]
                 
                 busy_block.title = f"Busy - {clean_title}"
                 busy_block.start_time = source_event.start_time
