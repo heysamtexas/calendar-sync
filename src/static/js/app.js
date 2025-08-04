@@ -42,6 +42,9 @@ function initializeDarkMode() {
                 darkModeIcon.className = 'dark-mode-icon light';
             }
         }
+        
+        // Update the global isDarkMode variable
+        window.isDarkModeActive = isDark;
     }
 }
 

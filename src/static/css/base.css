@@ -138,6 +138,8 @@ header nav a {
     border: 1px solid var(--accent-primary);
     border-radius: 4px;
     transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
 }
 
 header nav a:hover {
@@ -407,17 +409,19 @@ footer {
 
 .google-id-truncated code {
     display: block;
-    background: #f8f9fa;
+    background: var(--bg-tertiary);
     padding: 4px 8px;
     border-radius: 4px;
     font-family: 'Courier New', monospace;
     font-size: 0.85em;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-color);
     min-width: 0; /* Allow truncation */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    color: var(--text-primary);
+    transition: all 0.3s ease;
 }
 
 .copy-id-btn {
@@ -434,7 +438,7 @@ footer {
 
 .copy-id-btn:hover {
     opacity: 1;
-    background: #f8f9fa;
+    background: var(--bg-tertiary);
 }
 
 /* Loading indicator improvements */
@@ -450,8 +454,8 @@ footer {
 .loading-spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #007bff;
+    border: 2px solid var(--border-light);
+    border-top: 2px solid var(--accent-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -750,16 +754,20 @@ input:focus, textarea:focus, select:focus {
 
 /* Dark Mode Toggle Styles */
 .dark-mode-toggle {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    padding: 0.5rem;
+    padding: 0.5rem 1rem;
+    margin-left: 1rem;
     background: none;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.3s ease;
     color: var(--text-primary);
+    font-size: inherit;
+    min-width: auto;
 }
 
 .dark-mode-toggle:hover {
