@@ -108,24 +108,38 @@ def toggle_calendar_sync(request: HttpRequest, calendar_id: int) -> HttpResponse
 @require_POST
 def global_manual_sync(request: HttpRequest) -> HttpResponse:
     """Manually trigger sync for all user's calendars"""
-    from apps.calendars.services.sync_engine import sync_all_calendars
+    from apps.calendars.services.uuid_sync_engine import sync_calendar_yolo
 
     try:
-        # Run sync for all calendars of this user
-        results = sync_all_calendars(verbose=True)
+        # Run UUID correlation sync for all user's calendars
+        from apps.calendars.models import Calendar
+        
+        user_calendars = Calendar.objects.filter(
+            calendar_account__user=request.user,
+            sync_enabled=True,
+            calendar_account__is_active=True
+        )
+        
+        total_calendars = 0
+        total_errors = 0
+        
+        for calendar in user_calendars:
+            try:
+                sync_calendar_yolo(calendar)
+                total_calendars += 1
+            except Exception as e:
+                total_errors += 1
+                logger.error(f"Manual sync failed for calendar {calendar.name}: {e}")
 
-        if results["errors"]:
+        if total_errors > 0:
             messages.warning(
                 request,
-                f"Sync completed with {len(results['errors'])} errors. Check the sync logs for details.",
+                f"Sync completed with {total_errors} errors. Check the sync logs for details.",
             )
         else:
             messages.success(
                 request,
-                f"Successfully synced {results['calendars_processed']} calendars. "
-                f"Created {results['events_created']} events, "
-                f"updated {results['events_updated']} events, "
-                f"created {results['busy_blocks_created']} busy blocks.",
+                f"Successfully triggered sync for {total_calendars} calendars.",
             )
 
         return redirect("dashboard:index")

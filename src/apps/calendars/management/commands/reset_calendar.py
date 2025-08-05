@@ -3,7 +3,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.calendars.models import Calendar
-from apps.calendars.services.sync_engine import reset_calendar_busy_blocks
 
 
 class Command(BaseCommand):
@@ -58,18 +57,40 @@ class Command(BaseCommand):
         self.stdout.write("Resetting calendar...")
 
         try:
-            results = reset_calendar_busy_blocks(calendar_id)
-
-            if results["success"]:
-                deleted_count = results["deleted_count"]
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Successfully reset calendar '{results['calendar_name']}'"
-                    )
-                )
-                self.stdout.write(f"Removed {deleted_count} busy blocks")
-            else:
-                self.stdout.write(self.style.ERROR(f"Reset failed: {results['error']}"))
+            # Reset using UUID correlation - find and delete all busy blocks for this calendar
+            from apps.calendars.models import EventState
+            from apps.calendars.services.google_calendar_client import GoogleCalendarClient
+            
+            # Find all busy blocks created in this calendar
+            busy_blocks = EventState.objects.filter(
+                calendar=calendar,
+                is_busy_block=True,
+                status="SYNCED"
+            )
+            
+            deleted_count = 0
+            client = GoogleCalendarClient(calendar.calendar_account)
+            
+            # Delete from Google Calendar first
+            for busy_block in busy_blocks:
+                if busy_block.google_event_id:
+                    try:
+                        success = client.delete_event(
+                            calendar.google_calendar_id,
+                            busy_block.google_event_id
+                        )
+                        if success:
+                            deleted_count += 1
+                    except Exception as e:
+                        self.stdout.write(f"Warning: Failed to delete event {busy_block.google_event_id}: {e}")
+            
+            # Mark all busy blocks as deleted in database
+            busy_blocks.update(status="DELETED")
+            
+            self.stdout.write(
+                self.style.SUCCESS(f"Successfully reset calendar '{calendar.name}'")
+            )
+            self.stdout.write(f"Removed {deleted_count} busy blocks")
 
         except Exception as e:
             raise CommandError(f"Reset operation failed: {e}") from e
