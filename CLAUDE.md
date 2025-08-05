@@ -105,6 +105,19 @@ echo "Phase incomplete - fix issues before proceeding"
 - **Testing Framework**: Mandatory TDD workflow with coverage enforcement
 - **Quality Gates**: Automated code quality and security validation
 - **Subagent Integration**: Coverage-enforcer and code review integration points
+- **Architectural Documentation**: See `/docs/` for permanent technical knowledge
+
+### Documentation Structure
+**`/docs/` - Permanent Technical Knowledge:**
+- `/docs/testing-architecture/` - Guilfoyle's testing manifesto and patterns
+- `/docs/uuid-correlation-architecture/` - Core sync engine architecture  
+- `/docs/development-patterns/` - Coding standards and architectural decisions
+- `/docs/*.md` - Getting started guides and technical context
+
+**`/tasks/` - Active Project Management:**
+- Task roadmap and work breakdown
+- Development estimates and dependencies
+- Project status tracking
 
 ### AI Agent Starting Point
 **MANDATORY first steps for AI agents:**

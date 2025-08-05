@@ -59,17 +59,17 @@ Create comprehensive audit of existing tests:
 
 ```bash
 # Create audit directory
-mkdir -p tasks/guilfoyle-testing-architecture/audit/
+mkdir -p docs/testing-architecture/audit/
 
 # Generate test inventory
 cd src
-find . -name "test_*.py" -o -name "*_test.py" | sort > ../tasks/guilfoyle-testing-architecture/audit/all_test_files.txt
+find . -name "test_*.py" -o -name "*_test.py" | sort > ../docs/testing-architecture/audit/all_test_files.txt
 
 # Count total tests
-pytest --collect-only -q 2>/dev/null | grep "collected" > ../tasks/guilfoyle-testing-architecture/audit/test_count.txt
+pytest --collect-only -q 2>/dev/null | grep "collected" > ../docs/testing-architecture/audit/test_count.txt
 
 # Identify mock-heavy tests
-grep -r "Mock\|patch\|mock" */tests/ --include="*.py" | wc -l > ../tasks/guilfoyle-testing-architecture/audit/mock_usage.txt
+grep -r "Mock\|patch\|mock" */tests/ --include="*.py" | wc -l > ../docs/testing-architecture/audit/mock_usage.txt
 ```
 
 **Create detailed audit report in `audit/legacy_test_analysis.md`:**
@@ -443,8 +443,8 @@ coverage report --fail-under=75
 ## Files to Create/Modify
 
 ### New Files:
-- `tasks/guilfoyle-testing-architecture/audit/legacy_test_analysis.md` - Comprehensive audit report
-- `tasks/guilfoyle-testing-architecture/audit/elimination_checklist.md` - Systematic evaluation criteria
+- `docs/testing-architecture/audit/legacy_test_analysis.md` - Comprehensive audit report
+- `docs/testing-architecture/audit/elimination_checklist.md` - Systematic evaluation criteria
 - `scripts/eliminate_legacy_tests.sh` - Automated deletion script
 - `docs/testing_migration_guide.md` - Guide for developers
 
@@ -466,7 +466,7 @@ coverage report --fail-under=75
    ```bash
    cd src
    coverage run manage.py test
-   coverage report > ../tasks/guilfoyle-testing-architecture/audit/coverage_before.txt
+   coverage report > ../docs/testing-architecture/audit/coverage_before.txt
    ```
 
 2. **Execute Elimination Plan**:
@@ -478,7 +478,7 @@ coverage report --fail-under=75
    ```bash
    python manage.py test --verbosity=2
    coverage run manage.py test
-   coverage report > ../tasks/guilfoyle-testing-architecture/audit/coverage_after.txt
+   coverage report > ../docs/testing-architecture/audit/coverage_after.txt
    ```
 
 4. **Compare Results**:
@@ -490,7 +490,7 @@ coverage report --fail-under=75
    time python manage.py test
    
    # Coverage maintained
-   diff ../tasks/guilfoyle-testing-architecture/audit/coverage_before.txt ../tasks/guilfoyle-testing-architecture/audit/coverage_after.txt
+   diff ../docs/testing-architecture/audit/coverage_before.txt ../docs/testing-architecture/audit/coverage_after.txt
    ```
 
 ---
