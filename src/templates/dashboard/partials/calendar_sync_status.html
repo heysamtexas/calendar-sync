@@ -12,11 +12,12 @@
                        id="sync-toggle-{{ calendar.id }}"
                        name="sync_enabled"
                        {% if calendar.sync_enabled %}checked{% endif %}
+                       {% if calendar.cleanup_pending %}disabled{% endif %}
                        hx-post="{% url 'dashboard:toggle_calendar_sync' calendar.id %}"
                        hx-target="closest td"
                        hx-swap="innerHTML"
                        hx-indicator="#loading-{{ calendar.id }}"
-                       aria-label="{% if calendar.sync_enabled %}Disable{% else %}Enable{% endif %} sync for {{ calendar.name }}"
+                       aria-label="{% if calendar.cleanup_pending %}Sync disabled - cleanup in progress (cannot change){% elif calendar.sync_enabled %}Disable{% else %}Enable{% endif %} sync for {{ calendar.name }}"
                        class="toggle-checkbox">
                 <span class="toggle-slider">
                     <span class="toggle-indicator"></span>
@@ -26,7 +27,12 @@
             <span id="sync-status-{{ calendar.id }}" 
                   class="sync-status-text"
                   aria-live="polite">
-                {% if calendar.sync_enabled %}
+                {% if calendar.cleanup_pending %}
+                    <span class="status-text status-cleaning">
+                        Sync disabled - cleanup in progress
+                        <small class="cleanup-help">(usually takes 1-2 minutes)</small>
+                    </span>
+                {% elif calendar.sync_enabled %}
                     <span class="status-text status-enabled">Enabled</span>
                 {% else %}
                     <span class="status-text status-disabled">Disabled</span>

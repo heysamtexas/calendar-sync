@@ -185,3 +185,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
+
+# Calendar Sync Configuration
+# Guilfoyle's cleanup batch size - optimized for Django ORM bulk operations
+CLEANUP_BATCH_SIZE = 100
+
+# Sync toggle cleanup policy (Gone Gone mode)
+CALENDAR_SYNC_TOGGLE_OFF_CLEANUP = True

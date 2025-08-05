@@ -298,6 +298,15 @@ class Calendar(models.Model):
     sync_enabled = models.BooleanField(
         default=True, help_text="Enable/disable sync for this calendar"
     )
+    
+    # Async cleanup fields (Guilfoyle's async pattern)
+    cleanup_pending = models.BooleanField(
+        default=False, help_text="Calendar cleanup operation pending"
+    )
+    cleanup_requested_at = models.DateTimeField(
+        null=True, blank=True, help_text="When cleanup was requested"
+    )
+    
     last_sync_token = models.CharField(
         max_length=500, blank=True, help_text="Token for incremental sync"
     )
@@ -333,6 +342,12 @@ class Calendar(models.Model):
         indexes = [
             models.Index(fields=["last_synced_at"]),
             models.Index(fields=["sync_enabled"]),
+            # Partial index for cleanup_pending (Guilfoyle's optimization)
+            models.Index(
+                fields=["cleanup_pending", "updated_at"], 
+                name="idx_cleanup_pending_with_time",
+                condition=models.Q(cleanup_pending=True)
+            ),
         ]
 
     def __str__(self):
@@ -398,6 +413,9 @@ class Calendar(models.Model):
 
     def get_sync_status_display(self):
         """Human-readable sync status"""
+        if self.cleanup_pending:
+            return "Cleaning up..."
+        
         can_sync, reason = self.can_sync()
         if can_sync:
             return "Sync Enabled"
