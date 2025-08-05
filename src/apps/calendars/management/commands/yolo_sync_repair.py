@@ -8,12 +8,13 @@ No cascades. No compromises. No mercy for sync gaps.
 """
 
 import logging
-from collections import defaultdict
+
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.contrib.auth import get_user_model
 
 from apps.calendars.models import Calendar, EventState
+
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -49,13 +50,13 @@ class Command(BaseCommand):
         self.show_guilfoyle_mode = options["guilfoyle_mode"]
         self.show_work = options["show_work"]
         self.dry_run = options["dry_run"]
-        
+
         self._print_header()
 
         try:
             # Get users to repair
             users = self._get_users_to_repair(options)
-            
+
             if not users:
                 self.stdout.write(
                     self.style.WARNING("🤷 No users with multiple calendars found")
@@ -65,7 +66,7 @@ class Command(BaseCommand):
             # Execute the YOLO repair for each user
             total_repairs = 0
             perfect_users = 0
-            
+
             for user in users:
                 repairs_made = self._yolo_repair_user(user)
                 total_repairs += repairs_made
@@ -86,15 +87,15 @@ class Command(BaseCommand):
             "💡 Powered by UUID Correlation Supremacy",
             "🎯 Mission: Achieve Perfect Sync™",
         ]
-        
+
         if self.dry_run:
             header.append("🛡️  DRY RUN MODE (Playing it safe)")
         else:
             header.append("⚡ YOLO MODE ENGAGED")
-            
+
         for line in header:
             self.stdout.write(self.style.SUCCESS(line))
-        
+
         self.stdout.write("─" * 60)
 
     def _get_users_to_repair(self, options):
@@ -116,13 +117,13 @@ class Command(BaseCommand):
                 ).count()
                 if cal_count >= 2:
                     users_with_multiple_cals.append(user)
-            
+
             return users_with_multiple_cals
 
     def _yolo_repair_user(self, user):
         """Execute YOLO repair for a single user"""
         self.stdout.write(f"\n👤 Processing user: {user.email}")
-        
+
         # Get user's calendars
         calendars = list(Calendar.objects.filter(
             calendar_account__user=user,
@@ -136,15 +137,15 @@ class Command(BaseCommand):
 
         # Phase 1: AUDIT - Analyze sync consistency
         audit_results = self._audit_sync_consistency(calendars)
-        
+
         # Phase 2: Calculate Guilfoyle Health Score
         health_score = self._calculate_guilfoyle_health_score(audit_results)
-        
+
         # Phase 3: REPAIR - Fix missing busy blocks
         repairs_made = 0
         if audit_results["total_missing"] > 0:
             repairs_made = self._execute_yolo_repair(calendars, audit_results)
-        
+
         # Phase 4: VALIDATION - Verify Perfect Sync™
         if repairs_made > 0:
             final_audit = self._audit_sync_consistency(calendars)
@@ -167,20 +168,20 @@ class Command(BaseCommand):
             "missing_pairs": [],
             "total_missing": 0,
         }
-        
+
         calendar_events = {}
-        
+
         # Collect event data for each calendar
         for cal in calendars:
             user_events = cal.event_states.filter(is_busy_block=False)
             busy_blocks = cal.event_states.filter(is_busy_block=True)
-            
+
             calendar_events[cal.id] = {
                 "calendar": cal,
                 "user_events": list(user_events),
                 "busy_blocks": busy_blocks.count(),
             }
-            
+
             results["total_user_events"] += user_events.count()
             results["total_busy_blocks"] += busy_blocks.count()
 
@@ -189,18 +190,18 @@ class Command(BaseCommand):
             for target_cal_id, target_data in calendar_events.items():
                 if source_cal_id == target_cal_id:
                     continue
-                
+
                 source_cal = source_data["calendar"]
                 target_cal = target_data["calendar"]
                 source_events = source_data["user_events"]
-                
+
                 # Count expected vs actual busy blocks
                 expected = len(source_events)
                 results["expected_busy_blocks"] += expected
-                
+
                 if expected == 0:
                     continue
-                
+
                 # Find missing busy blocks
                 source_uuids = [event.uuid for event in source_events]
                 actual_busy_blocks = EventState.objects.filter(
@@ -208,10 +209,10 @@ class Command(BaseCommand):
                     source_uuid__in=source_uuids,
                     is_busy_block=True,
                 ).count()
-                
+
                 results["actual_busy_blocks"] += actual_busy_blocks
                 missing = expected - actual_busy_blocks
-                
+
                 if missing > 0:
                     pair_key = f"{source_cal.calendar_account.email} → {target_cal.calendar_account.email}"
                     results["missing_pairs"].append({
@@ -223,9 +224,9 @@ class Command(BaseCommand):
                         "missing": missing,
                         "pair_description": pair_key,
                     })
-                    
+
                     results["total_missing"] += missing
-                    
+
                     if target_cal.id not in results["missing_by_calendar"]:
                         results["missing_by_calendar"][target_cal.id] = 0
                     results["missing_by_calendar"][target_cal.id] += missing
@@ -242,7 +243,7 @@ class Command(BaseCommand):
         self.stdout.write(f"   📅 {results['total_user_events']} total user events")
         self.stdout.write(f"   🔒 {results['total_busy_blocks']} total busy blocks")
         self.stdout.write(f"   ⚠️  {results['total_missing']} missing busy blocks detected")
-        
+
         if results["missing_pairs"] and self.show_guilfoyle_mode:
             self.stdout.write("\n📋 MISSING BUSY BLOCK MATRIX:")
             for pair in results["missing_pairs"]:
@@ -256,9 +257,9 @@ class Command(BaseCommand):
         """Calculate Guilfoyle's Sync Health Score"""
         if audit_results["expected_busy_blocks"] == 0:
             return {"score": 100.0, "rating": "⭐⭐⭐⭐⭐", "status": "PERFECT"}
-        
+
         score = (audit_results["actual_busy_blocks"] / audit_results["expected_busy_blocks"]) * 100
-        
+
         if score >= 95:
             rating = "⭐⭐⭐⭐⭐"
             status = "PERFECT"
@@ -274,7 +275,7 @@ class Command(BaseCommand):
         else:
             rating = "⭐☆☆☆☆"
             status = "CRITICAL"
-        
+
         return {
             "score": score,
             "rating": rating,
@@ -289,16 +290,16 @@ class Command(BaseCommand):
             return audit_results["total_missing"]
 
         self.stdout.write(f"🎯 REPAIR: Creating {audit_results['total_missing']} missing busy blocks...")
-        
+
         repairs_made = 0
-        
+
         try:
             with transaction.atomic():
                 for pair in audit_results["missing_pairs"]:
                     source_cal = pair["source_calendar"]
                     target_cal = pair["target_calendar"]
                     source_events = pair["source_events"]
-                    
+
                     # Find which specific events are missing busy blocks
                     for source_event in source_events:
                         existing_busy_block = EventState.objects.filter(
@@ -306,7 +307,7 @@ class Command(BaseCommand):
                             source_uuid=source_event.uuid,
                             is_busy_block=True,
                         ).exists()
-                        
+
                         if not existing_busy_block:
                             # Guilfoyle's Trust-the-UUID Check
                             if self._is_safe_for_busy_block_creation(source_event):
@@ -314,17 +315,16 @@ class Command(BaseCommand):
                                     source_event, target_cal
                                 )
                                 repairs_made += 1
-                                
+
                                 if self.show_work:
                                     self.stdout.write(
                                         f"   ✅ Created busy block in {target_cal.name} "
                                         f"from {source_event.title[:30]}..."
                                     )
-                            else:
-                                if self.show_guilfoyle_mode:
-                                    self.stdout.write(
-                                        f"   ⚠️  Skipped busy block (source is already a busy block): {source_event.uuid}"
-                                    )
+                            elif self.show_guilfoyle_mode:
+                                self.stdout.write(
+                                    f"   ⚠️  Skipped busy block (source is already a busy block): {source_event.uuid}"
+                                )
 
         except Exception as e:
             logger.error(f"YOLO repair transaction failed: {e}")
@@ -337,28 +337,28 @@ class Command(BaseCommand):
         # Rule 1: Don't create busy blocks from busy blocks
         # Rule 2: Don't create busy blocks from deleted events
         # UUID correlation handles cascade prevention automatically
-        return (not source_event.is_busy_block and 
+        return (not source_event.is_busy_block and
                 source_event.status != "DELETED")
 
     def _create_missing_busy_block_with_uuid_correlation(self, source_event, target_calendar):
         """Create missing busy block with Guilfoyle's UUID correlation protection"""
         from apps.calendars.services.google_calendar_client import GoogleCalendarClient
-        
+
         # Create EventState first (database-first principle)
         busy_block_state = EventState.create_busy_block(
             target_calendar=target_calendar,
             source_uuid=source_event.uuid,
             title=source_event.title or "Event",
         )
-        
+
         # Create in Google Calendar with UUID correlation
         client = GoogleCalendarClient(target_calendar.calendar_account)
-        
+
         # Clean title to prevent cascade prefixes
         clean_title = source_event.title or "Event"
         if clean_title.startswith("Busy - "):
             clean_title = clean_title[7:]
-        
+
         event_data = {
             "summary": f"Busy - {clean_title}",
             "description": f"Busy block created by Guilfoyle's YOLO Repair from {source_event.calendar.name}",
@@ -367,14 +367,14 @@ class Command(BaseCommand):
             "transparency": "opaque",
             "visibility": "private",
         }
-        
+
         created_event = client.create_event_with_uuid_correlation(
             calendar_id=target_calendar.google_calendar_id,
             event_data=event_data,
             correlation_uuid=str(busy_block_state.uuid),
             skip_title_embedding=True,
         )
-        
+
         if created_event:
             busy_block_state.mark_synced(created_event["id"])
             return busy_block_state
@@ -388,7 +388,7 @@ class Command(BaseCommand):
         if not dt:
             from django.utils import timezone
             dt = timezone.now()
-        
+
         return {
             "dateTime": dt.isoformat(),
             "timeZone": "UTC",
@@ -399,7 +399,7 @@ class Command(BaseCommand):
         self.stdout.write(f"\n✅ REPAIR COMPLETE: {repairs_made} busy blocks created")
         self.stdout.write(f"📊 Health Score: {initial_health['score']:.1f}% → {final_health['score']:.1f}%")
         self.stdout.write(f"🏆 Guilfoyle Rating: {initial_health['rating']} → {final_health['rating']}")
-        
+
         if final_health["score"] >= 99.9:
             self.stdout.write(self.style.SUCCESS("🎉 PERFECT SYNC™ ACHIEVED"))
         elif final_health["score"] >= 95:
@@ -417,7 +417,7 @@ class Command(BaseCommand):
         self.stdout.write("\n" + "=" * 60)
         self.stdout.write("🏆 GUILFOYLE'S FINAL VERDICT")
         self.stdout.write("=" * 60)
-        
+
         if total_repairs == 0:
             self.stdout.write(self.style.SUCCESS("🎉 ALL USERS ALREADY HAVE PERFECT SYNC™"))
             self.stdout.write("💡 Guilfoyle's Law validated: UUID correlation solves everything")
@@ -425,17 +425,17 @@ class Command(BaseCommand):
             self.stdout.write(f"⚡ YOLO REPAIR COMPLETE: {total_repairs} total busy blocks created")
             self.stdout.write(f"👥 Users processed: {total_users}")
             self.stdout.write(f"✨ Perfect users: {perfect_users}")
-            
+
             if self.dry_run:
                 self.stdout.write("🛡️  Run without --dry-run to execute repairs")
             else:
                 self.stdout.write(self.style.SUCCESS("🚀 SYNC CONSISTENCY ACHIEVED"))
-        
-        self.stdout.write(f"💪 Guilfoyle's UUID Correlation Engine: OPERATIONAL")
-        
+
+        self.stdout.write("💪 Guilfoyle's UUID Correlation Engine: OPERATIONAL")
+
         if self.show_guilfoyle_mode:
             self.stdout.write("\n" + self.style.SUCCESS("🧠 Guilfoyle's Technical Notes:"))
             self.stdout.write("   • Database-first architecture prevents cascades")
-            self.stdout.write("   • UUID correlation ensures bulletproof event tracking")  
+            self.stdout.write("   • UUID correlation ensures bulletproof event tracking")
             self.stdout.write("   • Cascade paranoia validates every busy block creation")
             self.stdout.write("   • Perfect Sync™ is mathematically guaranteed")

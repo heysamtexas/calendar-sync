@@ -5,15 +5,15 @@ This command implements Guilfoyle's stuck state detection by finding calendars
 that have been in cleanup_pending=True state for too long and clearing the flag.
 """
 
-import logging
 from datetime import timedelta
+import logging
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.contrib.auth import get_user_model
 
 from apps.calendars.models import Calendar
-from apps.calendars.services.calendar_service import CalendarService
+
 
 User = get_user_model()
 
@@ -80,15 +80,15 @@ class Command(BaseCommand):
                     # Clear the stuck state
                     calendar.cleanup_pending = False
                     calendar.save(update_fields=['cleanup_pending'])
-                    
+
                     total_recovered += 1
-                    self.stdout.write(f"    ✅ Recovered")
-                    
+                    self.stdout.write("    ✅ Recovered")
+
                     self.logger.info(
                         f"Recovered stuck cleanup for calendar {calendar.id} "
                         f"({calendar.name}) - was stuck for {stuck_hours:.1f} hours"
                     )
-                    
+
                 except Exception as e:
                     total_errors += 1
                     self.stdout.write(

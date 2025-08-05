@@ -5,13 +5,12 @@ This command implements Guilfoyle's async cleanup pattern by processing
 calendars marked with cleanup_pending=True.
 """
 
-import logging
 from datetime import timedelta
+import logging
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db import transaction
-from django.conf import settings
 
 from apps.calendars.models import Calendar
 
@@ -54,7 +53,7 @@ class Command(BaseCommand):
 
         # Find calendars pending cleanup (with age buffer to avoid race conditions)
         cutoff_time = timezone.now() - timedelta(seconds=min_age_seconds)
-        
+
         pending_calendars = Calendar.objects.filter(
             cleanup_pending=True,
             cleanup_requested_at__lt=cutoff_time
@@ -73,9 +72,9 @@ class Command(BaseCommand):
                     self._show_cleanup_preview(calendar)
                 else:
                     self._process_calendar_cleanup(calendar)
-                
+
                 total_processed += 1
-                
+
                 if total_processed % 10 == 0:
                     self.stdout.write(f"Processed {total_processed} calendars...")
 
@@ -118,7 +117,7 @@ class Command(BaseCommand):
                 calendar.event_states.filter(is_busy_block=False)
                 .values_list('uuid', flat=True)
             )
-            
+
             from apps.calendars.models import EventState
             outbound_busy_blocks = EventState.objects.filter(
                 source_uuid__in=user_event_uuids,
@@ -138,42 +137,42 @@ class Command(BaseCommand):
     def _process_calendar_cleanup(self, calendar):
         """Process cleanup for a single calendar (Guilfoyle's bulletproof pattern)"""
         self.logger.debug(f"Starting cleanup for calendar {calendar.name}")
-        
+
         # Import here to avoid circular imports
         from apps.calendars.services.calendar_service import CalendarService
-        
+
         # Create service instance with the calendar's user
         service = CalendarService(user=calendar.calendar_account.user)
-        
+
         cleanup_completed = False
         local_cleaned = 0
         outbound_cleaned = 0
-        
+
         try:
             # Execute the same cleanup logic as the original sync method
             cleanup_stats = service._analyze_cleanup_scope(calendar)
             outbound_cleaned = service._cleanup_outbound_busy_blocks(calendar)
             local_cleaned = service._cleanup_calendar_events(calendar)
-            
+
             cleanup_completed = True
-            
+
             self.logger.info(
                 f"Completed cleanup for {calendar.name}: "
                 f"{local_cleaned} local events, {outbound_cleaned} outbound busy blocks"
             )
-            
+
             self.stdout.write(
                 f"✅ Cleaned up {calendar.name}: "
                 f"{local_cleaned} local + {outbound_cleaned} outbound events"
             )
-            
+
         except Exception as e:
             self.logger.error(f"Cleanup failed for {calendar.name}: {e}")
             self.stdout.write(
                 self.style.ERROR(f"❌ Failed to clean up {calendar.name}: {e}")
             )
             # Don't re-raise - we want to clear the flag and continue
-            
+
         finally:
             # CRITICAL: Always clear the cleanup_pending flag (Guilfoyle's requirement)
             try:
@@ -182,7 +181,7 @@ class Command(BaseCommand):
                 if cleanup_completed:
                     calendar.cleanup_requested_at = None
                 calendar.save(update_fields=['cleanup_pending', 'cleanup_requested_at'])
-                
+
                 self.logger.info(f"Cleared cleanup_pending flag for {calendar.name}")
             except Exception as e:
                 # This is really bad - we can't clear the flag

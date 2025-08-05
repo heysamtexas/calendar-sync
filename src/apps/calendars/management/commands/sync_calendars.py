@@ -9,12 +9,14 @@ Usage:
 """
 
 import logging
-from django.core.management.base import BaseCommand, CommandError
+
 from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apps.calendars.models import Calendar, CalendarAccount
+from apps.calendars.models import Calendar
 from apps.calendars.services.uuid_sync_engine import sync_calendar_yolo
+
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -115,19 +117,19 @@ class Command(BaseCommand):
 
         for calendar in calendars:
             status_info = []
-            
+
             if calendar.calendar_account.is_token_expired:
                 status_info.append("TOKEN EXPIRED")
             elif calendar.calendar_account.needs_token_refresh():
                 status_info.append("TOKEN REFRESH NEEDED")
-            
+
             if not calendar.sync_enabled:
                 status_info.append("SYNC DISABLED")
             elif calendar.cleanup_pending:
                 status_info.append("CLEANUP IN PROGRESS")
-            
+
             status_str = f" [{', '.join(status_info)}]" if status_info else ""
-            
+
             self.stdout.write(
                 f"  - {calendar.name} ({calendar.calendar_account.email}){status_str}"
             )
@@ -160,7 +162,7 @@ class Command(BaseCommand):
 
                 # Execute sync
                 self.stdout.write(f"Syncing {calendar.name}...")
-                
+
                 with transaction.atomic():
                     result = sync_calendar_yolo(calendar)
                     sync_results[calendar.id] = result
@@ -205,12 +207,12 @@ class Command(BaseCommand):
         self.stdout.write(f"\n{'='*50}")
         self.stdout.write("SYNC SUMMARY")
         self.stdout.write(f"{'='*50}")
-        
+
         if total_success > 0:
             self.stdout.write(
                 self.style.SUCCESS(f"✓ Successfully synced: {total_success} calendars")
             )
-        
+
         if total_errors > 0:
             self.stdout.write(
                 self.style.ERROR(f"✗ Failed to sync: {total_errors} calendars")
@@ -236,7 +238,7 @@ class Command(BaseCommand):
 
         if total_errors == 0 and total_success > 0:
             self.stdout.write(
-                self.style.SUCCESS(f"\n🎉 All calendars synced successfully!")
+                self.style.SUCCESS("\n🎉 All calendars synced successfully!")
             )
         elif total_success > 0:
             self.stdout.write(
@@ -246,5 +248,5 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(
-                self.style.ERROR(f"\n❌ Sync failed for all calendars.")
+                self.style.ERROR("\n❌ Sync failed for all calendars.")
             )

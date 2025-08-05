@@ -46,7 +46,7 @@ class GlobalSyncTest(TestCase):
     def test_global_sync_success(self, mock_sync):
         """Test successful global sync with UUID correlation"""
         from apps.calendars.models import Calendar
-        
+
         # Create a calendar for testing
         calendar = Calendar.objects.create(
             calendar_account=self.account,
@@ -54,7 +54,7 @@ class GlobalSyncTest(TestCase):
             google_calendar_id="test_cal_123",
             sync_enabled=True
         )
-        
+
         self.client.login(username="testuser", password="testpass123")
 
         # Mock successful UUID sync
@@ -77,15 +77,15 @@ class GlobalSyncTest(TestCase):
     def test_global_sync_with_errors(self, mock_sync):
         """Test global sync with errors"""
         from apps.calendars.models import Calendar
-        
+
         # Create a calendar for testing
         calendar = Calendar.objects.create(
             calendar_account=self.account,
             name="Test Calendar",
-            google_calendar_id="test_cal_123", 
+            google_calendar_id="test_cal_123",
             sync_enabled=True
         )
-        
+
         self.client.login(username="testuser", password="testpass123")
 
         # Mock sync raising exception

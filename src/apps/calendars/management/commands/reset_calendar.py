@@ -59,18 +59,20 @@ class Command(BaseCommand):
         try:
             # Reset using UUID correlation - find and delete all busy blocks for this calendar
             from apps.calendars.models import EventState
-            from apps.calendars.services.google_calendar_client import GoogleCalendarClient
-            
+            from apps.calendars.services.google_calendar_client import (
+                GoogleCalendarClient,
+            )
+
             # Find all busy blocks created in this calendar
             busy_blocks = EventState.objects.filter(
                 calendar=calendar,
                 is_busy_block=True,
                 status="SYNCED"
             )
-            
+
             deleted_count = 0
             client = GoogleCalendarClient(calendar.calendar_account)
-            
+
             # Delete from Google Calendar first
             for busy_block in busy_blocks:
                 if busy_block.google_event_id:
@@ -83,10 +85,10 @@ class Command(BaseCommand):
                             deleted_count += 1
                     except Exception as e:
                         self.stdout.write(f"Warning: Failed to delete event {busy_block.google_event_id}: {e}")
-            
+
             # Mark all busy blocks as deleted in database
             busy_blocks.update(status="DELETED")
-            
+
             self.stdout.write(
                 self.style.SUCCESS(f"Successfully reset calendar '{calendar.name}'")
             )

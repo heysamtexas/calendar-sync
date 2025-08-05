@@ -3,14 +3,15 @@ Tests for sync_calendars management command
 """
 
 from io import StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
-from django.contrib.auth import get_user_model
 
-from apps.calendars.models import Calendar, CalendarAccount
-from apps.calendars.management.commands.sync_calendars import Command
 from apps.accounts.models import UserProfile
+from apps.calendars.models import Calendar, CalendarAccount
+
 
 User = get_user_model()
 
@@ -23,17 +24,18 @@ class SyncCalendarsCommandTest(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com", password="testpass123"
         )
-        
+
         # Create user profile
         self.profile = UserProfile.objects.create(
             user=self.user,
             sync_enabled=True,
         )
-        
+
         # Create calendar account
-        from django.utils import timezone
         from datetime import timedelta
-        
+
+        from django.utils import timezone
+
         self.account = CalendarAccount.objects.create(
             user=self.user,
             google_account_id="test@example.com",
@@ -43,7 +45,7 @@ class SyncCalendarsCommandTest(TestCase):
             token_expires_at=timezone.now() + timedelta(hours=1),
             is_active=True,
         )
-        
+
         # Create calendars
         self.calendar1 = Calendar.objects.create(
             calendar_account=self.account,
@@ -51,7 +53,7 @@ class SyncCalendarsCommandTest(TestCase):
             name="Test Calendar 1",
             sync_enabled=True,
         )
-        
+
         self.calendar2 = Calendar.objects.create(
             calendar_account=self.account,
             google_calendar_id="cal2",
@@ -59,18 +61,18 @@ class SyncCalendarsCommandTest(TestCase):
             sync_enabled=False,  # Disabled but not in cleanup
             cleanup_pending=False,  # Explicitly not in cleanup state
         )
-        
+
         # Create another user's calendar
         self.user2 = User.objects.create_user(
             username="user2", email="user2@example.com", password="testpass123"
         )
-        
+
         # Create user profile for user2
         self.profile2 = UserProfile.objects.create(
             user=self.user2,
             sync_enabled=True,
         )
-        
+
         self.account2 = CalendarAccount.objects.create(
             user=self.user2,
             google_account_id="user2@example.com",
@@ -86,7 +88,7 @@ class SyncCalendarsCommandTest(TestCase):
             name="User 2 Calendar",
             sync_enabled=True,
         )
-        
+
         # Create a calendar in cleanup state (sync_enabled=True but cleanup_pending=True)
         self.calendar_in_cleanup = Calendar.objects.create(
             calendar_account=self.account,
@@ -106,22 +108,22 @@ class SyncCalendarsCommandTest(TestCase):
             'events_processed': 10,
             'errors': []
         }
-        
+
         out = StringIO()
         call_command('sync_calendars', force=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should sync 2 calendars (calendar1 and calendar3, but not calendar2 which is disabled)
         self.assertIn('Will sync 2 calendars:', output)
         self.assertIn('Test Calendar 1', output)
         self.assertIn('User 2 Calendar', output)
         self.assertNotIn('Test Calendar 2', output)  # Disabled calendar
-        
+
         # Should show success
         self.assertIn('Successfully synced: 2 calendars', output)
         self.assertIn('All calendars synced successfully!', output)
-        
+
         # Verify sync was called for enabled calendars
         self.assertEqual(mock_sync.call_count, 2)
 
@@ -135,17 +137,17 @@ class SyncCalendarsCommandTest(TestCase):
             'events_processed': 4,
             'errors': []
         }
-        
+
         out = StringIO()
         call_command('sync_calendars', user_email='test@example.com', force=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should only sync user1's enabled calendar
         self.assertIn('Will sync 1 calendars:', output)
         self.assertIn('Test Calendar 1', output)
         self.assertNotIn('User 2 Calendar', output)
-        
+
         # Verify sync was called once
         self.assertEqual(mock_sync.call_count, 1)
         mock_sync.assert_called_with(self.calendar1)
@@ -160,16 +162,16 @@ class SyncCalendarsCommandTest(TestCase):
             'events_processed': 3,
             'errors': []
         }
-        
+
         out = StringIO()
         call_command('sync_calendars', calendar_id=self.calendar1.id, force=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should sync only the specified calendar
         self.assertIn('Will sync 1 calendars:', output)
         self.assertIn('Test Calendar 1', output)
-        
+
         # Verify sync was called with correct calendar
         mock_sync.assert_called_once_with(self.calendar1)
 
@@ -177,9 +179,9 @@ class SyncCalendarsCommandTest(TestCase):
         """Test dry run mode"""
         out = StringIO()
         call_command('sync_calendars', dry_run=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should show dry run info
         self.assertIn('DRY RUN - Will sync 2 calendars:', output)
         self.assertIn('Dry run complete. Use without --dry-run to execute.', output)
@@ -197,12 +199,12 @@ class SyncCalendarsCommandTest(TestCase):
             },
             Exception("Sync failed")
         ]
-        
+
         out = StringIO()
         call_command('sync_calendars', force=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should show partial success
         self.assertIn('Successfully synced: 1 calendars', output)
         self.assertIn('Failed to sync: 1 calendars', output)
@@ -224,7 +226,7 @@ class SyncCalendarsCommandTest(TestCase):
         # Deactivate account
         self.account.is_active = False
         self.account.save()
-        
+
         mock_sync.return_value = {
             'user_events_found': 1,
             'busy_blocks_created': 0,
@@ -232,29 +234,30 @@ class SyncCalendarsCommandTest(TestCase):
             'events_processed': 1,
             'errors': []
         }
-        
+
         out = StringIO()
         call_command('sync_calendars', force=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should attempt sync even with inactive account when forced
         self.assertIn('Successfully synced:', output)
-        
+
     def test_show_calendar_status_info(self):
         """Test that calendar status is shown in dry run"""
         # Make account token expired
-        from django.utils import timezone
         from datetime import timedelta
-        
+
+        from django.utils import timezone
+
         self.account.token_expires_at = timezone.now() - timedelta(hours=1)
         self.account.save()
-        
+
         out = StringIO()
         call_command('sync_calendars', dry_run=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should show token status
         self.assertIn('[TOKEN EXPIRED]', output)
 
@@ -267,16 +270,17 @@ class SyncCalendarsCommandIntegrationTest(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com", password="testpass123"
         )
-        
+
         # Create user profile
         self.profile = UserProfile.objects.create(
             user=self.user,
             sync_enabled=True,
         )
-        
-        from django.utils import timezone
+
         from datetime import timedelta
-        
+
+        from django.utils import timezone
+
         self.account = CalendarAccount.objects.create(
             user=self.user,
             google_account_id="test@example.com",
@@ -294,7 +298,7 @@ class SyncCalendarsCommandIntegrationTest(TestCase):
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
         mock_client.list_events_with_uuid_extraction.return_value = []
-        
+
         # Create calendar
         calendar = Calendar.objects.create(
             calendar_account=self.account,
@@ -302,14 +306,14 @@ class SyncCalendarsCommandIntegrationTest(TestCase):
             name="Test Calendar",
             sync_enabled=True,
         )
-        
+
         out = StringIO()
         call_command('sync_calendars', stdout=out, verbosity=0)
-        
+
         # Should complete without errors
         output = out.getvalue()
         self.assertIn('Successfully synced: 1 calendars', output)
-        
+
         # Verify Google client was called
         mock_client.list_events_with_uuid_extraction.assert_called_once_with('test_cal')
 
@@ -323,18 +327,18 @@ class SyncCalendarsCommandIntegrationTest(TestCase):
             'events_processed': 1,
             'errors': []
         }
-        
+
         out = StringIO()
         call_command('sync_calendars', force=True, stdout=out)
-        
+
         output = out.getvalue()
-        
+
         # Should sync 2 calendars (calendar1 and calendar3, excluding disabled and cleanup calendars)
         self.assertIn('Will sync 2 calendars:', output)
         self.assertIn('Test Calendar 1', output)
         self.assertIn('User 2 Calendar', output)
         self.assertNotIn('Test Calendar 2', output)  # Disabled calendar
         self.assertNotIn('Calendar In Cleanup', output)  # Calendar in cleanup state
-        
+
         # Verify sync was called for only enabled, non-cleanup calendars
         self.assertEqual(mock_sync.call_count, 2)

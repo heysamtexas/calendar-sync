@@ -113,16 +113,16 @@ def global_manual_sync(request: HttpRequest) -> HttpResponse:
     try:
         # Run UUID correlation sync for all user's calendars
         from apps.calendars.models import Calendar
-        
+
         user_calendars = Calendar.objects.filter(
             calendar_account__user=request.user,
             sync_enabled=True,
             calendar_account__is_active=True
         )
-        
+
         total_calendars = 0
         total_errors = 0
-        
+
         for calendar in user_calendars:
             try:
                 sync_calendar_yolo(calendar)
