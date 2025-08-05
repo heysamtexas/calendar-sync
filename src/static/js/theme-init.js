@@ -1,4 +1,4 @@
-// Initialize theme immediately to prevent flash
+// Initialize Bootstrap theme immediately to prevent flash
 (function() {
     const savedTheme = localStorage.getItem('theme');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -12,5 +12,6 @@
         currentTheme = 'light'; // Default to light
     }
     
-    document.documentElement.setAttribute('data-theme', currentTheme);
+    // Set Bootstrap's data-bs-theme attribute
+    document.documentElement.setAttribute('data-bs-theme', currentTheme);
 })();

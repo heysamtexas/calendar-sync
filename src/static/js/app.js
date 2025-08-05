@@ -1,226 +1,137 @@
-// Dark Mode Functionality
-function initializeDarkMode() {
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    const darkModeIcon = document.getElementById('darkModeIcon');
-    const html = document.documentElement;
+// Bootstrap 5 Theme Toggle Implementation
+function initializeThemeToggle() {
+    const themeToggle = document.getElementById('darkModeToggle');
+    const themeIcon = document.getElementById('darkModeIcon');
     
-    // Check for saved theme preference or default to system preference
-    const savedTheme = localStorage.getItem('theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Get stored theme or default to 'auto'
+    const getStoredTheme = () => localStorage.getItem('theme');
+    const setStoredTheme = theme => localStorage.setItem('theme', theme);
     
-    // Determine initial theme
-    let currentTheme;
-    if (savedTheme) {
-        currentTheme = savedTheme; // Use saved preference
-    } else if (systemPrefersDark) {
-        currentTheme = 'dark'; // Use system preference
-    } else {
-        currentTheme = 'light'; // Default to light
-    }
+    // Get preferred theme
+    const getPreferredTheme = () => {
+        const storedTheme = getStoredTheme();
+        if (storedTheme) {
+            return storedTheme;
+        }
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    };
     
-    // Apply initial theme
-    setTheme(currentTheme);
+    // Set theme on document
+    const setTheme = theme => {
+        if (theme === 'auto') {
+            document.documentElement.setAttribute('data-bs-theme', 
+                window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        } else {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+        }
+        
+        // Update icon and button attributes
+        updateThemeIcon(theme);
+    };
     
-    // Toggle dark mode on button click
-    if (darkModeToggle) {
-        darkModeToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+    // Update icon based on theme
+    const updateThemeIcon = (theme) => {
+        if (!themeIcon || !themeToggle) return;
+        
+        const isDark = theme === 'dark' || 
+            (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        // Add animation class
+        themeIcon.classList.add('changing');
+        
+        setTimeout(() => {
+            if (isDark) {
+                themeIcon.className = 'bi bi-moon-stars-fill theme-icon';
+                themeToggle.setAttribute('title', 'Switch to light theme');
+                themeToggle.setAttribute('aria-label', 'Switch to light theme');
+            } else {
+                themeIcon.className = 'bi bi-sun-fill theme-icon';
+                themeToggle.setAttribute('title', 'Switch to dark theme');
+                themeToggle.setAttribute('aria-label', 'Switch to dark theme');
+            }
             
-            // Toggle theme
-            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(currentTheme);
-            
-            // Save user preference
-            localStorage.setItem('theme', currentTheme);
-        });
-    }
+            // Remove animation class
+            setTimeout(() => {
+                themeIcon.classList.remove('changing');
+            }, 150);
+        }, 150);
+    };
+    
+    // Set initial theme
+    setTheme(getPreferredTheme());
     
     // Listen for system theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-        // Only respond to system changes if user hasn't manually set a preference
-        if (!localStorage.getItem('theme')) {
-            currentTheme = e.matches ? 'dark' : 'light';
-            setTheme(currentTheme);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const storedTheme = getStoredTheme();
+        if (storedTheme !== 'light' && storedTheme !== 'dark') {
+            setTheme(getPreferredTheme());
         }
     });
     
-    function setTheme(theme) {
-        // Set data-theme attribute on html element
-        html.setAttribute('data-theme', theme);
-        
-        // Update icon
-        if (darkModeIcon) {
-            darkModeIcon.className = theme === 'dark' ? 'dark-mode-icon dark' : 'dark-mode-icon light';
-        }
-        
-        // Update global variable for debugging
-        window.currentTheme = theme;
+    // Toggle theme on button click
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = getStoredTheme() || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            setStoredTheme(newTheme);
+            setTheme(newTheme);
+        });
     }
 }
 
 // HTMX Configuration and Event Handlers
 document.addEventListener('DOMContentLoaded', function() {
     
-    // Initialize dark mode
-    initializeDarkMode();
+    // Initialize theme toggle
+    initializeThemeToggle();
     
-    // Set dynamic calendar colors using CSS custom properties
-    document.querySelectorAll('.calendar-color-badge[data-color]').forEach(function(badge) {
-        const color = badge.getAttribute('data-color');
-        if (color) {
-            badge.style.setProperty('--calendar-color', color);
-        }
-    });
-    
-    // Configure HTMX CSRF protection
-    document.body.addEventListener('htmx:configRequest', function(evt) {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        if (csrfToken) {
-            evt.detail.headers['X-CSRFToken'] = csrfToken;
-        }
-    });
-    
-    // Global error handling for HTMX requests
-    document.body.addEventListener('htmx:responseError', function(evt) {
-        console.error('HTMX request error:', evt.detail);
-        
-        // Find the closest error container
-        const errorContainer = evt.target.closest('.calendar-sync-toggle')?.querySelector('.error-container');
-        if (errorContainer) {
-            errorContainer.innerHTML = '<div class="alert alert-danger">An error occurred. Please try again.</div>';
-            errorContainer.style.display = 'block';
-            
-            // Hide error after 5 seconds
-            setTimeout(() => {
-                errorContainer.style.display = 'none';
-                errorContainer.innerHTML = '';
-            }, 5000);
-        }
-    });
-    
-    // Handle successful HTMX responses
-    document.body.addEventListener('htmx:afterSwap', function(evt) {
-        // Hide any visible error containers on successful swap
-        const errorContainers = document.querySelectorAll('.error-container');
-        errorContainers.forEach(container => {
-            container.style.display = 'none';
-            container.innerHTML = '';
-        });
-    });
-    
-    // Handle loading states
-    document.body.addEventListener('htmx:beforeRequest', function(evt) {
-        // Disable the button that triggered the request
-        if (evt.target.matches('button')) {
-            evt.target.disabled = true;
-        }
-    });
-    
-    document.body.addEventListener('htmx:afterRequest', function(evt) {
-        // Re-enable buttons after request completes
-        if (evt.target.matches('button')) {
-            evt.target.disabled = false;
-        }
-    });
-    
-    // Handle copy-to-clipboard buttons
-    document.addEventListener('click', function(evt) {
-        if (evt.target.matches('.copy-id-btn')) {
-            evt.preventDefault();
-            const calendarId = evt.target.getAttribute('data-calendar-id');
+    // Copy to clipboard functionality
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('.copy-id-btn')) {
+            const calendarId = e.target.getAttribute('data-calendar-id');
             if (calendarId) {
-                copyToClipboard(calendarId);
+                navigator.clipboard.writeText(calendarId).then(function() {
+                    // Show temporary success feedback
+                    const originalText = e.target.textContent;
+                    e.target.textContent = '✓';
+                    e.target.style.color = '#28a745';
+                    
+                    setTimeout(function() {
+                        e.target.textContent = originalText;
+                        e.target.style.color = '';
+                    }, 1000);
+                }).catch(function(err) {
+                    console.error('Failed to copy: ', err);
+                });
             }
         }
     });
     
-    // Handle disconnect account confirmation
-    document.addEventListener('click', function(evt) {
-        if (evt.target.matches('.disconnect-account-btn')) {
-            const confirmMessage = evt.target.getAttribute('data-confirm-message');
+    // Disconnect account confirmation
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('.disconnect-account-btn')) {
+            const confirmMessage = e.target.getAttribute('data-confirm-message');
             if (confirmMessage && !confirm(confirmMessage)) {
-                evt.preventDefault();
+                e.preventDefault();
             }
         }
     });
     
-});
-
-// Copy to clipboard function for Google Calendar IDs
-function copyToClipboard(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-        // Use modern clipboard API
-        navigator.clipboard.writeText(text).then(function() {
-            showCopyNotification('Copied to clipboard!');
-        }).catch(function(err) {
-            console.error('Failed to copy to clipboard:', err);
-            showCopyNotification('Failed to copy', true);
-        });
-    } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.opacity = '0';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        
-        try {
-            const successful = document.execCommand('copy');
-            showCopyNotification(successful ? 'Copied to clipboard!' : 'Failed to copy', !successful);
-        } catch (err) {
-            console.error('Failed to copy to clipboard:', err);
-            showCopyNotification('Failed to copy', true);
+    // HTMX loading indicators
+    document.body.addEventListener('htmx:beforeRequest', function(e) {
+        const indicator = e.target.closest('td')?.querySelector('.htmx-indicator');
+        if (indicator) {
+            indicator.classList.remove('d-none');
+            indicator.classList.add('d-flex');
         }
-        
-        document.body.removeChild(textArea);
-    }
-}
-
-// Show copy notification
-function showCopyNotification(message, isError = false) {
-    // Remove any existing notifications
-    const existingNotification = document.querySelector('.copy-notification');
-    if (existingNotification) {
-        existingNotification.remove();
-    }
+    });
     
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `copy-notification ${isError ? 'error' : 'success'}`;
-    notification.textContent = message;
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${isError ? '#dc3545' : '#28a745'};
-        color: white;
-        padding: 12px 20px;
-        border-radius: 4px;
-        font-size: 14px;
-        font-weight: 500;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 1000;
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Animate in
-    setTimeout(() => {
-        notification.style.transform = 'translateX(0)';
-    }, 10);
-    
-    // Animate out and remove
-    setTimeout(() => {
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }, 2000);
-}
+    document.body.addEventListener('htmx:afterRequest', function(e) {
+        const indicator = e.target.closest('td')?.querySelector('.htmx-indicator');
+        if (indicator) {
+            indicator.classList.add('d-none');
+            indicator.classList.remove('d-flex');
+        }
+    });
+});

@@ -3,37 +3,59 @@
 {% block title %}Login - Calendar Sync Tool{% endblock %}
 
 {% block content %}
-<div class="card">
-    <h2>Login</h2>
-    <p>Please log in to access your calendar synchronization dashboard.</p>
-    
-    <form method="post">
-        {% csrf_token %}
-        <div>
-            <label for="{{ form.username.id_for_label }}">Username:</label>
-            {{ form.username }}
-            {% if form.username.errors %}
-                <div class="message error">{{ form.username.errors.0 }}</div>
-            {% endif %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h2 class="card-title text-center mb-4">Login</h2>
+                <p class="card-text text-center text-muted mb-4">Please log in to access your calendar synchronization dashboard.</p>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger" role="alert">
+                            {{ form.non_field_errors.0 }}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.username.id_for_label }}" class="form-label">Username:</label>
+                        <input type="text" 
+                               class="form-control {% if form.username.errors %}is-invalid{% endif %}"
+                               id="{{ form.username.id_for_label }}"
+                               name="{{ form.username.name }}"
+                               value="{{ form.username.value|default:'' }}"
+                               required>
+                        {% if form.username.errors %}
+                            <div class="invalid-feedback">{{ form.username.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.password.id_for_label }}" class="form-label">Password:</label>
+                        <input type="password" 
+                               class="form-control {% if form.password.errors %}is-invalid{% endif %}"
+                               id="{{ form.password.id_for_label }}"
+                               name="{{ form.password.name }}"
+                               required>
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback">{{ form.password.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Login</button>
+                    </div>
+                </form>
+                
+                <div class="mt-4 text-center">
+                    <small class="text-muted">
+                        This is a single-user application. If you don't have an account, create one using Django admin or the command line.
+                    </small>
+                </div>
+            </div>
         </div>
-        
-        <div>
-            <label for="{{ form.password.id_for_label }}">Password:</label>
-            {{ form.password }}
-            {% if form.password.errors %}
-                <div class="message error">{{ form.password.errors.0 }}</div>
-            {% endif %}
-        </div>
-        
-        {% if form.non_field_errors %}
-            <div class="message error">{{ form.non_field_errors.0 }}</div>
-        {% endif %}
-        
-        <button type="submit" class="btn">Login</button>
-    </form>
-    
-    <p class="login-help-text">
-        <small>This is a single-user application. If you don't have an account, create one using Django admin or the command line.</small>
-    </p>
+    </div>
 </div>
 {% endblock %}

@@ -3,201 +3,218 @@
 {% block title %}{{ account.email }} - Calendar Sync Tool{% endblock %}
 
 {% block content %}
-<div class="card">
-    <h2>Account: {{ account.email }}</h2>
-    <p>Detailed view of calendar account and synchronization settings.</p>
-    <a href="{% url 'dashboard:index' %}" class="btn">← Back to Dashboard</a>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h2 class="card-title">Account: {{ account.email }}</h2>
+        <p class="card-text">Detailed view of calendar account and synchronization settings.</p>
+        <a href="{% url 'dashboard:index' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
+    </div>
 </div>
 
 <!-- Account Information -->
-<div class="card" role="region" aria-labelledby="account-info-heading">
-    <h3 id="account-info-heading">Account Information</h3>
-    <table role="table" aria-label="Google Calendar account details">
-        <tr>
-            <td><strong>Email:</strong></td>
-            <td>{{ account.email }}</td>
-        </tr>
-        <tr>
-            <td><strong>Status:</strong></td>
-            <td>
-                {% if account.is_active %}
-                    <span class="status status-active">Active</span>
-                {% else %}
-                    <span class="status status-inactive">Inactive</span>
-                {% endif %}
-            </td>
-        </tr>
-        <tr>
-            <td><strong>Connected:</strong></td>
-            <td>{{ account.created_at|date:"M d, Y H:i" }}</td>
-        </tr>
-        <tr>
-            <td><strong>Last Sync:</strong></td>
-            <td>
-                {% if account.last_sync %}
-                    {{ account.last_sync|date:"M d, Y H:i" }}
-                {% else %}
-                    Never
-                {% endif %}
-            </td>
-        </tr>
-        <tr>
-            <td><strong>Token Expires:</strong></td>
-            <td>
-                {% if account.token_expires_at %}
-                    {{ account.token_expires_at|date:"M d, Y H:i" }}
-                {% else %}
-                    Unknown
-                {% endif %}
-            </td>
-        </tr>
-    </table>
+<div class="card shadow-sm" role="region" aria-labelledby="account-info-heading">
+    <div class="card-body">
+        <h3 id="account-info-heading" class="card-title">Account Information</h3>
+        <div class="table-responsive">
+            <table class="table table-borderless" role="table" aria-label="Google Calendar account details">
+                <tbody>
+                    <tr>
+                        <td><strong>Email:</strong></td>
+                        <td>{{ account.email }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Status:</strong></td>
+                        <td>
+                            {% if account.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Connected:</strong></td>
+                        <td>{{ account.created_at|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Last Sync:</strong></td>
+                        <td>
+                            {% if account.last_sync %}
+                                {{ account.last_sync|date:"M d, Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Token Expires:</strong></td>
+                        <td>
+                            {% if account.token_expires_at %}
+                                {{ account.token_expires_at|date:"M d, Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <!-- Calendars -->
-<div class="card" role="region" aria-labelledby="calendars-heading">
-    <h3 id="calendars-heading">Calendars ({{ calendars.count }})</h3>
-    {% if calendars %}
-        <table role="table" aria-label="Calendar synchronization settings" class="calendars-table responsive-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Google ID</th>
-                    <th>Sync</th>
-                    <th>Primary</th>
-                    <th>Color</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for calendar in calendars %}
-                <tr>
-                    <td data-label="Name">{{ calendar.name }}</td>
-                    <td data-label="Google ID" class="google-id-cell">
-                        <span class="google-id-truncated" 
-                              title="{{ calendar.google_calendar_id }}"
-                              data-full-id="{{ calendar.google_calendar_id }}">
-                            <code>{{ calendar.google_calendar_id }}</code>
-                        </span>
-                        <button type="button" 
-                                class="copy-id-btn" 
-                                data-calendar-id="{{ calendar.google_calendar_id }}"
-                                title="Copy full Google Calendar ID"
-                                aria-label="Copy Google Calendar ID for {{ calendar.name }}">
-                            📋
-                        </button>
-                    </td>
-                    <td data-label="Sync">
-                        {% include 'dashboard/partials/calendar_sync_status.html' %}
-                    </td>
-                    <td data-label="Primary">
-                        {% if calendar.is_primary %}
-                            <span class="status status-active">Yes</span>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td data-label="Color">
-                        {% if calendar.color %}
-                            <span class="calendar-color-badge" 
-                                  data-color="{{ calendar.color }}" 
-                                  aria-label="Calendar color: {{ calendar.color }}">
-                                {{ calendar.color }}
-                            </span>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>No calendars found for this account.</p>
-    {% endif %}
+<div class="card shadow-sm" role="region" aria-labelledby="calendars-heading">
+    <div class="card-body">
+        <h3 id="calendars-heading" class="card-title">Calendars ({{ calendars.count }})</h3>
+        {% if calendars %}
+            <div class="table-responsive">
+                <table role="table" aria-label="Calendar synchronization settings" class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Google ID</th>
+                            <th>Sync</th>
+                            <th>Color</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for calendar in calendars %}
+                        <tr>
+                            <td data-label="Name">
+                                <div class="d-flex flex-column">
+                                    <div class="fw-medium">{{ calendar.name }}</div>
+                                    {% if calendar.is_primary %}
+                                        <span class="badge bg-primary mt-1 align-self-start" title="Primary calendar">PRIMARY</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td data-label="Google ID">
+                                <div class="d-flex align-items-center">
+                                    <code class="text-truncate bg-light p-1 rounded me-2 flex-grow-1" 
+                                          title="{{ calendar.google_calendar_id }}"
+                                          style="max-width: 200px;">{{ calendar.google_calendar_id }}</code>
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary btn-sm" 
+                                            data-calendar-id="{{ calendar.google_calendar_id }}"
+                                            title="Copy full Google Calendar ID"
+                                            aria-label="Copy Google Calendar ID for {{ calendar.name }}">
+                                        📋
+                                    </button>
+                                </div>
+                            </td>
+                            <td data-label="Sync">
+                                {% include 'dashboard/partials/calendar_sync_status.html' %}
+                            </td>
+                            <td data-label="Color">
+                                {% if calendar.color %}
+                                    <span class="badge text-white p-2 rounded-pill" 
+                                          style="background-color: {{ calendar.color }};"
+                                          aria-label="Calendar color: {{ calendar.color }}">
+                                        {{ calendar.color }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="card-text">No calendars found for this account.</p>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Sync History -->
 {% if sync_logs %}
-<div class="card" role="region" aria-labelledby="sync-history-heading">
-    <h3 id="sync-history-heading">Sync History (Last 20)</h3>
-    <table role="table" aria-label="Calendar synchronization history and logs">
-        <thead>
-            <tr>
-                <th>Started</th>
-                <th>Completed</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Events</th>
-                <th>Errors</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in sync_logs %}
-            <tr>
-                <td>{{ log.started_at|date:"M d, H:i:s" }}</td>
-                <td>
-                    {% if log.completed_at %}
-                        {{ log.completed_at|date:"M d, H:i:s" }}
-                    {% else %}
-                        <span class="status status-pending">Running</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if log.completed_at %}
-                        {{ log.duration }} sec
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                <td>
-                    {% if log.success %}
-                        <span class="status status-active">Success</span>
-                    {% elif log.completed_at %}
-                        <span class="status status-inactive">Failed</span>
-                    {% else %}
-                        <span class="status status-pending">Running</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if log.events_processed %}
-                        {{ log.events_processed }}
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                <td>
-                    {% if log.error_message %}
-                        <span class="status status-inactive">{{ log.error_message|truncatechars:30 }}</span>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="card shadow-sm" role="region" aria-labelledby="sync-history-heading">
+    <div class="card-body">
+        <h3 id="sync-history-heading" class="card-title">Sync History (Last 20)</h3>
+        <div class="table-responsive">
+            <table class="table table-hover" role="table" aria-label="Calendar synchronization history and logs">
+                <thead class="table-light">
+                    <tr>
+                        <th>Started</th>
+                        <th>Completed</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Events</th>
+                        <th>Errors</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in sync_logs %}
+                    <tr>
+                        <td>{{ log.started_at|date:"M d, H:i:s" }}</td>
+                        <td>
+                            {% if log.completed_at %}
+                                {{ log.completed_at|date:"M d, H:i:s" }}
+                            {% else %}
+                                <span class="badge bg-warning">Running</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.completed_at %}
+                                {{ log.duration }} sec
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.success %}
+                                <span class="badge bg-success">Success</span>
+                            {% elif log.completed_at %}
+                                <span class="badge bg-danger">Failed</span>
+                            {% else %}
+                                <span class="badge bg-warning">Running</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.events_processed %}
+                                {{ log.events_processed }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.error_message %}
+                                <span class="text-danger" title="{{ log.error_message }}">{{ log.error_message|truncatechars:30 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endif %}
 
 <!-- Actions -->
-<div class="card" role="region" aria-labelledby="account-actions-heading">
-    <h3 id="account-actions-heading">Account Actions</h3>
-    <div class="actions-container">
-        {% if account.is_active %}
-            <a href="{% url 'dashboard:refresh_calendars' account.id %}" class="btn" aria-describedby="refresh-help">Refresh Calendars</a>
-            <span id="refresh-help" class="sr-only">Update calendar list from Google</span>
-            
-            <a href="{% url 'accounts:disconnect_account' account.id %}" class="btn btn-danger disconnect-account-btn" 
-               data-confirm-message="Are you sure you want to disconnect this account? This will remove all calendars and sync data."
-               aria-describedby="disconnect-help">Disconnect Account</a>
-            <span id="disconnect-help" class="sr-only">Permanently disconnect and remove this Google Calendar account</span>
-        {% else %}
-            <button type="button" class="btn btn-success" disabled aria-describedby="reactivate-help">Reactivate Account</button>
-            <span id="reactivate-help" class="sr-only">Account reactivation functionality coming soon</span>
-            
-            <button type="button" class="btn btn-danger" disabled aria-describedby="remove-help">Remove Account</button>
-            <span id="remove-help" class="sr-only">Account removal functionality coming soon</span>
-        {% endif %}
+<div class="card shadow-sm" role="region" aria-labelledby="account-actions-heading">
+    <div class="card-body">
+        <h3 id="account-actions-heading" class="card-title">Account Actions</h3>
+        <div class="d-flex flex-wrap gap-2">
+            {% if account.is_active %}
+                <a href="{% url 'dashboard:refresh_calendars' account.id %}" class="btn btn-outline-primary" aria-describedby="refresh-help">Refresh Calendars</a>
+                <span id="refresh-help" class="visually-hidden">Update calendar list from Google</span>
+                
+                <a href="{% url 'accounts:disconnect_account' account.id %}" class="btn btn-danger disconnect-account-btn" 
+                   data-confirm-message="Are you sure you want to disconnect this account? This will remove all calendars and sync data."
+                   aria-describedby="disconnect-help">Disconnect Account</a>
+                <span id="disconnect-help" class="visually-hidden">Permanently disconnect and remove this Google Calendar account</span>
+            {% else %}
+                <button type="button" class="btn btn-success" disabled aria-describedby="reactivate-help">Reactivate Account</button>
+                <span id="reactivate-help" class="visually-hidden">Account reactivation functionality coming soon</span>
+                
+                <button type="button" class="btn btn-danger" disabled aria-describedby="remove-help">Remove Account</button>
+                <span id="remove-help" class="visually-hidden">Account removal functionality coming soon</span>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

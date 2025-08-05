@@ -1,834 +1,243 @@
-/* Minimal CSS for Calendar Sync Tool MVP */
+/* Bootstrap 5 Extensions for Calendar Sync Tool */
 
-/* Light theme - default and explicit */
+/* Custom CSS variables for components not covered by Bootstrap themes */
 :root,
-[data-theme="light"] {
-    --bg-primary: #f8f9fa;
-    --bg-secondary: #fff;
-    --bg-tertiary: #f8f9fa;
-    --text-primary: #333;
-    --text-secondary: #6c757d;
-    --text-muted: #495057;
-    --border-color: #dee2e6;
-    --border-light: #e9ecef;
-    --accent-primary: #007bff;
-    --accent-primary-hover: #0056b3;
-    --success-bg: #d4edda;
-    --success-text: #155724;
-    --success-border: #c3e6cb;
-    --error-bg: #f8d7da;
-    --error-text: #721c24;
-    --error-border: #f5c6cb;
-    --warning-bg: #fff3cd;
-    --warning-text: #856404;
-    --warning-border: #ffeaa7;
-    --danger-bg: #dc3545;
-    --danger-hover: #c82333;
-    --toggle-bg: #28a745;
-    --toggle-hover: #218838;
-    --shadow: rgba(0, 0, 0, 0.1);
-    --shadow-dark: rgba(0, 0, 0, 0.2);
+[data-bs-theme="light"] {
+    --calendar-copy-btn-bg: var(--bs-gray-100);
+    --calendar-copy-btn-hover: var(--bs-gray-200);
+    --calendar-loading-bg: rgba(0, 0, 0, 0.05);
 }
 
-/* Dark theme - only when explicitly set */
-[data-theme="dark"] {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2d2d2d;
-    --bg-tertiary: #1e1e1e;
-    --text-primary: #e9ecef;
-    --text-secondary: #adb5bd;
-    --text-muted: #868e96;
-    --border-color: #495057;
-    --border-light: #343a40;
-    --accent-primary: #4dabf7;
-    --accent-primary-hover: #339af0;
-    --success-bg: #1b4332;
-    --success-text: #d1e7dd;
-    --success-border: #2d5a3d;
-    --error-bg: #58151c;
-    --error-text: #f8d7da;
-    --error-border: #842029;
-    --warning-bg: #664d03;
-    --warning-text: #fff3cd;
-    --warning-border: #997404;
-    --danger-bg: #dc3545;
-    --danger-hover: #bb2d3b;
-    --toggle-bg: #198754;
-    --toggle-hover: #157347;
-    --shadow: rgba(0, 0, 0, 0.3);
-    --shadow-dark: rgba(0, 0, 0, 0.5);
+[data-bs-theme="dark"] {
+    --calendar-copy-btn-bg: var(--bs-gray-800);
+    --calendar-copy-btn-hover: var(--bs-gray-700);
+    --calendar-loading-bg: rgba(255, 255, 255, 0.05);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    line-height: 1.6;
-    color: var(--text-primary);
-    background-color: var(--bg-primary);
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
-/* Header */
-header {
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    padding: 1rem 0;
-    transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-header .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-header h1 a {
-    text-decoration: none;
-    color: var(--text-primary);
-    font-size: 1.5rem;
-    transition: color 0.3s ease;
-}
-
-header nav a {
-    margin-left: 1rem;
-    text-decoration: none;
-    color: var(--accent-primary);
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--accent-primary);
-    border-radius: 4px;
+/* Theme Toggle Button Styling */
+.theme-toggle {
     transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-}
-
-header nav a:hover {
-    background-color: var(--accent-primary);
-    color: var(--bg-secondary);
-}
-
-/* Main content */
-main {
-    min-height: 60vh;
-    padding: 2rem 0;
-}
-
-/* Messages */
-.messages {
-    margin-bottom: 1rem;
-}
-
-.message {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    border-radius: 4px;
-}
-
-.message.success {
-    background-color: var(--success-bg);
-    color: var(--success-text);
-    border: 1px solid var(--success-border);
-}
-
-.message.error {
-    background-color: var(--error-bg);
-    color: var(--error-text);
-    border: 1px solid var(--error-border);
-}
-
-.message.warning {
-    background-color: var(--warning-bg);
-    color: var(--warning-text);
-    border: 1px solid var(--warning-border);
-}
-
-/* Tables */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--bg-secondary);
-    margin: 1rem 0;
-    transition: background-color 0.3s ease;
-}
-
-th, td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-    transition: border-color 0.3s ease;
-}
-
-th {
-    background-color: var(--bg-tertiary);
-    font-weight: 600;
-    color: var(--text-primary);
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Forms */
-form {
-    background: var(--bg-secondary);
-    padding: 1.5rem;
-    border-radius: 4px;
-    margin: 1rem 0;
-    transition: background-color 0.3s ease;
-}
-
-input, textarea, select {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-bottom: 1rem;
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    transition: all 0.3s ease;
-}
-
-button, .btn {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    background-color: var(--accent-primary);
-    color: var(--bg-secondary);
-    border: none;
-    border-radius: 4px;
-    text-decoration: none;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-button:hover, .btn:hover {
-    background-color: var(--accent-primary-hover);
-}
-
-.btn-danger {
-    background-color: var(--danger-bg);
-}
-
-.btn-danger:hover {
-    background-color: var(--danger-hover);
-}
-
-.btn-success {
-    background-color: var(--toggle-bg);
-}
-
-.btn-success:hover {
-    background-color: var(--toggle-hover);
-}
-
-/* Cards */
-.card {
-    background: var(--bg-secondary);
-    padding: 1.5rem;
-    border-radius: 4px;
-    margin: 1rem 0;
-    border: 1px solid var(--border-color);
-    transition: all 0.3s ease;
-}
-
-.card h2, .card h3 {
-    margin-bottom: 1rem;
-}
-
-/* Status indicators */
-.status {
-    padding: 0.25rem 0.5rem;
-    border-radius: 3px;
-    font-size: 0.875rem;
-}
-
-.status-active {
-    background-color: var(--success-bg);
-    color: var(--success-text);
-}
-
-.status-inactive {
-    background-color: var(--error-bg);
-    color: var(--error-text);
-}
-
-.status-pending {
-    background-color: var(--warning-bg);
-    color: var(--warning-text);
-}
-
-/* Footer */
-footer {
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-color);
-    padding: 1rem 0;
-    margin-top: 2rem;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-/* Toggle Switch Styles */
-.toggle-switch-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.toggle-switch {
+    border-radius: 0.375rem;
     position: relative;
-    display: inline-block;
-    width: 54px;
-    height: 28px;
-    cursor: pointer;
-}
-
-.toggle-checkbox {
-    opacity: 0;
-    width: 0;
-    height: 0;
-    position: absolute;
-}
-
-.toggle-slider {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: var(--border-color);
-    transition: 0.3s ease;
-    border-radius: 28px;
-    display: flex;
-    align-items: center;
-}
-
-.toggle-indicator {
-    height: 22px;
-    width: 22px;
-    background-color: var(--bg-secondary);
-    border-radius: 50%;
-    transition: 0.3s ease;
-    transform: translateX(3px);
-    box-shadow: 0 2px 4px var(--shadow-dark);
-}
-
-.toggle-checkbox:checked + .toggle-slider {
-    background-color: var(--toggle-bg);
-}
-
-.toggle-checkbox:checked + .toggle-slider .toggle-indicator {
-    transform: translateX(26px);
-}
-
-.toggle-checkbox:focus + .toggle-slider {
-    box-shadow: 0 0 0 3px var(--shadow);
-}
-
-.toggle-checkbox:disabled + .toggle-slider {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.sync-status-text {
-    font-size: 0.9em;
-    color: var(--text-secondary);
-    min-width: 60px;
-    transition: color 0.3s ease;
-}
-
-.status-text.status-enabled {
-    color: var(--toggle-bg);
-    font-weight: 500;
-}
-
-.status-text.status-disabled {
-    color: var(--text-secondary);
-}
-
-/* Calendar-specific table enhancements */
-.calendars-table {
-    table-layout: fixed;
-}
-
-.calendars-table th:nth-child(1) { width: 25%; } /* Name */
-.calendars-table th:nth-child(2) { width: 35%; } /* Google ID - most space for long IDs */
-.calendars-table th:nth-child(3) { width: 15%; } /* Sync - compact for toggle */
-.calendars-table th:nth-child(4) { width: 10%; } /* Primary */
-.calendars-table th:nth-child(5) { width: 15%; } /* Color */
-
-/* Google ID cell styling */
-.google-id-cell {
-    position: relative;
-    max-width: 0; /* Enable text truncation */
-}
-
-.google-id-truncated {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0; /* Allow flex item to shrink */
-}
-
-.google-id-truncated code {
-    display: block;
-    background: var(--bg-tertiary);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85em;
-    border: 1px solid var(--border-color);
-    min-width: 0; /* Allow truncation */
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    color: var(--text-primary);
-    transition: all 0.3s ease;
 }
 
-.copy-id-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    font-size: 14px;
-    opacity: 0.7;
-    transition: opacity 0.2s ease;
-    flex-shrink: 0;
-}
-
-.copy-id-btn:hover {
-    opacity: 1;
-    background: var(--bg-tertiary);
-}
-
-/* Loading indicator improvements */
-.loading-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-    font-size: 0.85em;
-    color: var(--text-secondary);
-}
-
-.loading-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--border-light);
-    border-top: 2px solid var(--accent-primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Responsive table for mobile */
-@media (max-width: 768px) {
-    .responsive-table {
-        border: 0;
-        box-shadow: none;
-    }
-    
-    .responsive-table thead {
-        display: none;
-    }
-    
-    .responsive-table tr {
-        display: block;
-        margin-bottom: 1rem;
-        background: var(--bg-secondary);
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        padding: 1rem;
-    }
-    
-    .responsive-table td {
-        display: block;
-        text-align: right;
-        border: none;
-        padding: 0.5rem 0;
-        position: relative;
-    }
-    
-    .responsive-table td:before {
-        content: attr(data-label) ": ";
-        position: absolute;
-        left: 0;
-        font-weight: 600;
-        color: var(--text-muted);
-    }
-    
-    .google-id-cell {
-        max-width: none;
-    }
-    
-    .google-id-truncated {
-        justify-content: flex-end;
-    }
-    
-    .toggle-switch-container {
-        justify-content: flex-end;
-    }
-}
-
-/* Calendar Sync Toggle Components */
-.calendar-sync-toggle {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.sync-toggle-form {
-    display: contents;
-    background: none;
-    padding: 0;
-    margin: 0;
-}
-
-.sync-status-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.sync-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-weight: 500;
-}
-
-.btn-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    border: none;
-    border-radius: 0.25rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.btn-toggle:hover {
+.theme-toggle:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.btn-toggle:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
+.theme-toggle:focus {
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
 }
 
-/* Loading States */
-.loading-indicator {
-    display: none;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-.loading-indicator.htmx-request {
-    display: flex;
-}
-
-.loading-spinner {
-    width: 1rem;
-    height: 1rem;
-    border: 2px solid var(--border-light);
-    border-top: 2px solid var(--accent-primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Error States */
-.error-container {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    margin-top: 0.25rem;
-}
-
-.error-container .alert {
-    margin: 0;
-    padding: 0.5rem;
-    font-size: 0.875rem;
-}
-
-/* Status Icons */
-.icon-sync,
-.icon-pause,
-.icon-play {
-    width: 1rem;
-    height: 1rem;
+.theme-toggle .theme-icon {
+    font-size: 1rem;
+    transition: all 0.3s ease;
     display: inline-block;
 }
 
-.icon-sync::before { content: "🔄"; }
-.icon-pause::before { content: "⏸️"; }
-.icon-play::before { content: "▶️"; }
-
-/* HTMX Loading States */
-.htmx-indicator {
-    display: none;
+/* Icon animation on theme change */
+.theme-toggle .theme-icon.changing {
+    transform: rotate(180deg) scale(0.8);
 }
 
-.htmx-request .htmx-indicator {
-    display: inline-flex;
+/* Theme-specific button styling */
+[data-bs-theme="light"] .theme-toggle {
+    border-color: rgba(0, 0, 0, 0.125);
+    background-color: rgba(255, 255, 255, 0.8);
 }
 
-.htmx-request.loading-indicator {
-    display: flex;
+[data-bs-theme="dark"] .theme-toggle {
+    border-color: rgba(255, 255, 255, 0.125);
+    background-color: rgba(0, 0, 0, 0.8);
 }
 
-/* Accessibility Improvements */
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
-
-/* Focus indicators */
-.btn-toggle:focus {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 2px;
-}
-
-/* High contrast support */
-@media (prefers-contrast: high) {
-    .status-active {
-        background-color: var(--bg-primary);
-        color: var(--text-primary);
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .theme-toggle {
+        padding: 0.375rem 0.5rem;
+        min-width: 2.5rem;
+        min-height: 2.5rem;
     }
     
-    .status-inactive {
-        background-color: var(--text-muted);
-        color: var(--bg-secondary);
+    .theme-toggle .theme-icon {
+        font-size: 1.1rem;
+    }
+    
+    /* Ensure adequate touch target size */
+    .theme-toggle:focus {
+        outline: 2px solid var(--bs-primary);
+        outline-offset: 2px;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .theme-toggle {
+        border-width: 2px;
+    }
+    
+    [data-bs-theme="light"] .theme-toggle {
+        border-color: #000;
+        background-color: #fff;
+        color: #000;
+    }
+    
+    [data-bs-theme="dark"] .theme-toggle {
+        border-color: #fff;
+        background-color: #000;
+        color: #fff;
     }
 }
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-    .btn-toggle {
+    .theme-toggle,
+    .theme-toggle .theme-icon {
         transition: none;
     }
     
-    .loading-spinner {
-        animation: none;
+    .theme-toggle:hover {
+        transform: none;
     }
     
-    .loading-spinner::after {
-        content: "⟳";
+    .theme-toggle .theme-icon.changing {
+        transform: none;
+    }
+}
+
+/* Copy Button Styling (for calendar IDs) */
+.copy-id-btn {
+    background: var(--calendar-copy-btn-bg);
+    border: 1px solid var(--bs-border-color);
+    transition: all 0.2s ease;
+}
+
+.copy-id-btn:hover {
+    background: var(--calendar-copy-btn-hover);
+    transform: translateY(-1px);
+}
+
+/* Loading States for HTMX */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: flex !important;
+}
+
+/* Calendar Color Badge Custom Styling */
+.calendar-color-badge {
+    min-width: 60px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Enhanced table responsiveness for calendar tables */
+@media (max-width: 768px) {
+    .table-responsive table,
+    .table-responsive thead,
+    .table-responsive tbody,
+    .table-responsive th,
+    .table-responsive td,
+    .table-responsive tr {
         display: block;
     }
+    
+    .table-responsive thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    .table-responsive tr {
+        border: 1px solid var(--bs-border-color);
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border-radius: 0.375rem;
+    }
+    
+    .table-responsive td {
+        border: none;
+        position: relative;
+        padding-left: 40% !important;
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+    }
+    
+    .table-responsive td:before {
+        content: attr(data-label) ": ";
+        position: absolute;
+        left: 6px;
+        width: 35%;
+        padding-right: 10px;
+        white-space: nowrap;
+        font-weight: 600;
+        color: var(--bs-secondary);
+    }
+    
+    /* Mobile-specific sync toggle styling */
+    .table-responsive td[data-label="Sync"] {
+        text-align: center;
+        padding-left: 1rem !important;
+    }
+    
+    .table-responsive td[data-label="Sync"]:before {
+        display: block;
+        position: relative;
+        left: 0;
+        width: auto;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
 }
 
-/* Calendar Color Badge */
-.calendar-color-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 3px;
-    color: white;
-    font-size: 0.75rem;
-    display: inline-block;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    min-width: 60px;
-    text-align: center;
+/* Accessibility enhancements */
+@media (prefers-reduced-motion: reduce) {
+    .copy-id-btn {
+        transition: none;
+    }
+    
+    .copy-id-btn:hover {
+        transform: none;
+    }
 }
 
-/* Use CSS custom properties for dynamic colors */
-.calendar-color-badge[data-color] {
-    background-color: var(--calendar-color, var(--text-secondary));
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .copy-id-btn {
+        border-width: 2px;
+    }
+    
+    .badge {
+        border: 1px solid;
+    }
 }
 
-/* Login Form Styles */
-.login-help-text {
-    margin-top: 1rem;
-    color: var(--text-secondary);
-    text-align: center;
+/* Utilities that extend Bootstrap */
+.text-truncate-mobile {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* Form Labels Accessibility */
-label {
-    display: block;
-    margin-bottom: 0.25rem;
-    font-weight: 500;
-    color: var(--text-primary);
+@media (min-width: 768px) {
+    .text-truncate-mobile {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
 }
 
-/* Form Field Accessibility */
-input:focus, textarea:focus, select:focus {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 2px;
-    border-color: var(--accent-primary);
-}
-
-/* Error Message Accessibility */
-.message.error {
-    margin-top: 0.25rem;
-    font-size: 0.875rem;
-}
-
-/* Actions Container */
-.actions-container {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-.actions-container .btn {
-    margin: 0;
-}
-
-/* Disabled button styles */
-.btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background-color: var(--text-secondary);
-}
-
-.btn:disabled:hover {
-    background-color: var(--text-secondary);
-    transform: none;
-}
-
-/* Dark Mode Toggle Styles */
-.dark-mode-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+/* Loading overlay improvements */
+.position-relative .htmx-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--calendar-loading-bg);
     padding: 0.5rem 1rem;
-    margin-left: 1rem;
-    background: none;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    color: var(--text-primary);
-    font-size: inherit;
-    min-width: auto;
-}
-
-.dark-mode-toggle:hover {
-    background-color: var(--bg-tertiary);
-    border-color: var(--accent-primary);
-}
-
-.dark-mode-toggle:focus {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 2px;
-}
-
-.dark-mode-icon {
-    width: 1rem;
-    height: 1rem;
-    display: inline-block;
-}
-
-.dark-mode-icon.light::before {
-    content: "☀️";
-}
-
-.dark-mode-icon.dark::before {
-    content: "🌙";
-}
-
-/* Dark mode transitions - but don't apply to everything */
-body,
-header,
-footer,
-.card,
-form,
-table,
-th,
-td,
-input,
-textarea,
-select,
-button,
-.btn,
-.google-id-truncated code,
-.copy-id-btn,
-.dark-mode-toggle {
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-    header .container {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    header nav {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 0.5rem;
-    }
-    
-    header nav a {
-        margin: 0;
-        font-size: 0.875rem;
-    }
-    
-    .dark-mode-toggle {
-        margin: 0;
-        font-size: 0.875rem;
-    }
-    
-    .container {
-        padding: 0 15px;
-    }
-    
-    table {
-        font-size: 0.875rem;
-    }
-    
-    th, td {
-        padding: 0.5rem;
-    }
-}
-
-/* Utility Classes */
-.inline-form {
-    display: inline;
-}
-
-.logout-btn {
-    margin-left: 1rem; 
-    padding: 0.5rem 1rem; 
-    display: inline-flex; 
-    align-items: center;
+    border-radius: 0.375rem;
+    backdrop-filter: blur(2px);
 }
