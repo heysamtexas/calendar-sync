@@ -32,13 +32,8 @@ class GoogleWebhookView(View):
         calendar_id = request.META.get("HTTP_X_GOOG_RESOURCE_ID")
         channel_id = request.META.get("HTTP_X_GOOG_CHANNEL_ID")
 
-        # Basic webhook info for logging
-        message_number = int(request.META.get("HTTP_X_GOOG_MESSAGE_NUMBER", 0))
-
-        # Log webhook basics (removed verbose dump)
-        logger.info(
-            f"Webhook received - Channel: {channel_id}, Resource: {calendar_id}, Message: {message_number}"
-        )
+        # Log webhook basics
+        logger.info(f"Webhook received - Channel: {channel_id}, Resource: {calendar_id}")
 
         # Basic validation - ensure required headers are present
         if not calendar_id or not channel_id:
@@ -48,16 +43,13 @@ class GoogleWebhookView(View):
             return HttpResponse(status=400)
 
         # Trigger sync for this specific calendar
-        self._trigger_sync(calendar_id, channel_id, message_number)
+        self._trigger_sync(calendar_id, channel_id)
 
         # Always return 200 - webhooks should never fail
         return HttpResponse(status=200)
 
-    def _trigger_sync(self, calendar_id, channel_id, message_number):
+    def _trigger_sync(self, calendar_id, channel_id):
         """Trigger existing sync logic for the calendar that changed"""
-        logger.info(
-            f"Webhook triggered for calendar {calendar_id}, channel {channel_id}, message {message_number}"
-        )
 
         # Global sync coordination: Prevent conflicts between webhook and scheduled syncs
         from django.core.cache import cache
@@ -71,20 +63,13 @@ class GoogleWebhookView(View):
         # Check if sync is already running for this calendar
         existing_lock = cache.get(global_cache_key)
         if existing_lock:
-            logger.debug(
-                f"Skipping webhook - calendar {calendar_id} already being synced by {existing_lock}"
-            )
             return
 
         # Check if webhook is already processing for this channel
         if cache.get(webhook_cache_key):
-            logger.debug(
-                f"Skipping webhook - already processing for channel {channel_id}"
-            )
             return
 
         # Set global sync lock to prevent scheduled syncs from interfering
-        logger.debug(f"Acquiring webhook sync lock for calendar {calendar_id}")
         cache.set(global_cache_key, "webhook", 120)  # 2 minutes for webhook priority
         # Set webhook-specific flag to prevent duplicate webhook processing
         cache.set(webhook_cache_key, True, 60)
@@ -100,10 +85,8 @@ class GoogleWebhookView(View):
                     sync_enabled=True,
                     calendar_account__is_active=True,
                 )
-                logger.debug(f"Found calendar: {calendar.name} (ID: {calendar.id})")
 
             except Calendar.DoesNotExist:
-                logger.warning(f"Calendar not found for channel {channel_id}")
                 # Fallback: try to find by resource ID (Google Calendar ID)
                 try:
                     calendar = Calendar.objects.get(
@@ -111,15 +94,9 @@ class GoogleWebhookView(View):
                         sync_enabled=True,
                         calendar_account__is_active=True,
                     )
-                    logger.debug(
-                        f"Found calendar by resource ID fallback: {calendar.name}"
-                    )
                 except Calendar.DoesNotExist:
                     logger.warning(
-                        f"Calendar not found by channel {channel_id} or resource {calendar_id}"
-                    )
-                    logger.debug(
-                        f"Webhook for unknown or inactive calendar: {calendar_id}"
+                        f"Calendar not found for channel {channel_id} or resource {calendar_id}"
                     )
                     return
 
@@ -137,6 +114,5 @@ class GoogleWebhookView(View):
                 logger.exception("Webhook sync error details:")
         finally:
             # Clear processing flags
-            logger.debug(f"Releasing webhook sync lock for calendar {calendar_id}")
             cache.delete(webhook_cache_key)
             cache.delete(global_cache_key)

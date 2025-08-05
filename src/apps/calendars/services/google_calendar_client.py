@@ -452,42 +452,6 @@ class GoogleCalendarClient:
 
     # === GUILFOYLE'S ENHANCED METHODS FOR UUID CORRELATION ===
 
-    def get_event_with_robust_retry(
-        self, calendar_id: str, google_event_id: str, max_retries: int = 3
-    ) -> dict | None:
-        """
-        Get event with production-hardened error handling
-        
-        Uses existing rate limiting, adds handling for deleted events and permissions
-        """
-        try:
-            service = self._get_service()
-            request = service.events().get(calendarId=calendar_id, eventId=google_event_id)
-            return self._execute_with_rate_limiting(
-                request, f"get_event {google_event_id}"
-            )
-
-        except HttpError as e:
-            if e.resp.status == 404:
-                # Event deleted on Google side - clean up our state
-                logger.info(f"Event {google_event_id} deleted on Google side")
-                self._handle_deleted_event(google_event_id)
-                return None
-
-            elif e.resp.status == 403:
-                # Permission issue - disable sync for this calendar
-                logger.error(f"Permission denied for calendar {calendar_id}: {e}")
-                self._disable_calendar_sync(calendar_id, reason=f"Permission denied: {e}")
-                return None
-
-            else:
-                # Let main rate limiting handle other errors
-                logger.error(f"Failed to get event {google_event_id}: {e}")
-                return None
-
-        except Exception as e:
-            logger.error(f"Unexpected error getting event {google_event_id}: {e}")
-            return None
 
     def create_event_with_uuid_correlation(
         self,
@@ -541,7 +505,7 @@ class GoogleCalendarClient:
             from apps.calendars.utils import UUIDCorrelationUtils
 
             # Get current event
-            current_event = self.get_event_with_robust_retry(calendar_id, google_event_id)
+            current_event = self.get_event(calendar_id, google_event_id)
             if not current_event:
                 logger.warning(f"Cannot update event {google_event_id} - not found")
                 return None
@@ -651,37 +615,6 @@ class GoogleCalendarClient:
 
         return results
 
-    def _handle_deleted_event(self, google_event_id: str):
-        """Handle event deleted on Google side"""
-        try:
-            from apps.calendars.models import EventState
-
-            # Mark EventState as deleted
-            event_states = EventState.objects.filter(google_event_id=google_event_id)
-            count = event_states.update(status='DELETED', updated_at=timezone.now())
-
-            if count > 0:
-                logger.info(f"Marked {count} EventState records as deleted for {google_event_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to handle deleted event {google_event_id}: {e}")
-
-    def _disable_calendar_sync(self, calendar_id: str, reason: str):
-        """Disable sync for calendar due to permission issues"""
-        try:
-            from apps.calendars.models import Calendar
-
-            calendar = Calendar.objects.filter(google_calendar_id=calendar_id).first()
-            if calendar:
-                calendar.sync_enabled = False
-                calendar.save(update_fields=['sync_enabled'])
-
-                logger.error(f"Disabled sync for calendar {calendar.name}: {reason}")
-
-                # TODO: Send notification to user about disabled sync
-
-        except Exception as e:
-            logger.error(f"Failed to disable calendar sync for {calendar_id}: {e}")
 
 
 def get_google_calendar_client(account: CalendarAccount) -> GoogleCalendarClient:

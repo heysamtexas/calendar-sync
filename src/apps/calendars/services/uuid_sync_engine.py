@@ -150,11 +150,6 @@ class UUIDCorrelationSyncEngine:
         is_ours, correlation_uuid = UUIDCorrelationUtils.is_our_event(google_event)
 
         if correlation_uuid:
-            # Log classification decision
-            event_title = google_event.get("summary", "No Title")
-            logger.debug(
-                f"Event classification: '{event_title}' -> is_ours={is_ours}, uuid={correlation_uuid}"
-            )
 
             if is_ours:
                 return {
@@ -189,8 +184,6 @@ class UUIDCorrelationSyncEngine:
         """
         with transaction.atomic():
             # Create EventState first - CLEAN title to prevent UUID contamination from Google
-            from apps.calendars.utils import UUIDCorrelationUtils
-
             raw_title = google_event.get("summary", "")
             clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
 
@@ -278,8 +271,6 @@ class UUIDCorrelationSyncEngine:
             client = GoogleCalendarClient(target_calendar.calendar_account)
 
             # CRITICAL: Clean title to prevent cascade prefixes and UUID contamination
-            from apps.calendars.utils import UUIDCorrelationUtils
-
             raw_title = source_event_state.title or "Event"
             # Remove invisible UUID markers first
             clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
@@ -468,8 +459,6 @@ class UUIDCorrelationSyncEngine:
         YOLO: Detect time, duration, or title changes that need propagation
         """
         try:
-            from apps.calendars.utils import UUIDCorrelationUtils
-
             # Get existing EventState
             event_state = EventState.objects.by_uuid(correlation_uuid)
             if not event_state or event_state.is_busy_block:
@@ -483,19 +472,15 @@ class UUIDCorrelationSyncEngine:
                 raw_google_title
             )
 
-            # Check for changes
-            changes = []
-            if event_state.start_time != google_start:
-                changes.append(f"start: {event_state.start_time} -> {google_start}")
-            if event_state.end_time != google_end:
-                changes.append(f"end: {event_state.end_time} -> {google_end}")
-            if event_state.title != google_title:
-                changes.append(f"title: '{event_state.title}' -> '{google_title}'")
+            # Check for changes (simplified)
+            has_changes = (
+                event_state.start_time != google_start or
+                event_state.end_time != google_end or
+                event_state.title != google_title
+            )
 
-            if changes:
-                logger.info(
-                    f"Event changes detected for {correlation_uuid}: {', '.join(changes)}"
-                )
+            if has_changes:
+                logger.info(f"Event changes detected for {correlation_uuid}")
                 return True
 
             return False
@@ -521,8 +506,6 @@ class UUIDCorrelationSyncEngine:
                     return None
 
                 # Update with new data - CLEAN title to remove UUID contamination
-                from apps.calendars.utils import UUIDCorrelationUtils
-
                 raw_title = google_event.get("summary", "")
                 event_state.title = UUIDCorrelationUtils.clean_title_for_display(
                     raw_title
@@ -591,8 +574,6 @@ class UUIDCorrelationSyncEngine:
             with transaction.atomic():
                 # Update busy block database record first
                 # CRITICAL: Clean source title to prevent "Busy - Busy -" cascade and UUID contamination
-                from apps.calendars.utils import UUIDCorrelationUtils
-
                 raw_title = source_event.title or "Event"
                 # Remove invisible UUID markers first
                 clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)

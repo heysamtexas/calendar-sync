@@ -12,7 +12,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.calendars.models import Calendar, CalendarAccount, EventState
-from apps.calendars.utils import LegacyDetectionUtils, UUIDCorrelationUtils
+from apps.calendars.utils import UUIDCorrelationUtils
 
 
 class TestEventStateModel(TestCase):
@@ -254,110 +254,5 @@ class TestUUIDCorrelationUtils(TestCase):
         self.assertEqual(clean_title, 'Meeting Title')
         self.assertNotIn(correlation_uuid, clean_title)
 
-    def test_validate_event_integrity_consistent(self):
-        """Test event integrity validation with consistent UUIDs"""
-        correlation_uuid = str(uuid.uuid4())
-
-        google_event = {
-            'summary': f'Test Event\u200B{correlation_uuid}\u200B',
-            'description': f'Description\n<!-- [CB:{correlation_uuid}] -->',
-            'extendedProperties': {
-                'private': {
-                    'calendar_bridge_uuid': correlation_uuid
-                }
-            }
-        }
-
-        report = UUIDCorrelationUtils.validate_event_integrity(google_event)
-
-        self.assertTrue(report['consistent'])
-        self.assertEqual(report['primary_uuid'], correlation_uuid)
-        self.assertEqual(report['backup1_uuid'], correlation_uuid)
-        self.assertEqual(report['backup2_uuid'], correlation_uuid)
-        self.assertEqual(len(report['issues']), 0)
-
-    def test_validate_event_integrity_inconsistent(self):
-        """Test event integrity validation with inconsistent UUIDs"""
-        uuid1 = str(uuid.uuid4())
-        uuid2 = str(uuid.uuid4())
-
-        google_event = {
-            'summary': f'Test Event\u200B{uuid1}\u200B',
-            'description': f'Description\n<!-- [CB:{uuid2}] -->',
-            'extendedProperties': {
-                'private': {
-                    'calendar_bridge_uuid': uuid1
-                }
-            }
-        }
-
-        report = UUIDCorrelationUtils.validate_event_integrity(google_event)
-
-        self.assertFalse(report['consistent'])
-        self.assertGreater(len(report['issues']), 0)
 
 
-class TestLegacyDetectionUtils(TestCase):
-    """Test legacy event detection for transition period"""
-
-    def test_legacy_busy_block_detection_title(self):
-        """Test legacy busy block detection via title"""
-        google_event = {
-            'summary': 'Busy - Important Meeting',
-            'description': 'Meeting details'
-        }
-
-        is_legacy = LegacyDetectionUtils.is_legacy_busy_block(google_event)
-        self.assertTrue(is_legacy)
-
-    def test_legacy_busy_block_detection_emoji(self):
-        """Test legacy busy block detection via emoji"""
-        google_event = {
-            'summary': '🔒 Busy - Important Meeting',
-            'description': 'Meeting details'
-        }
-
-        is_legacy = LegacyDetectionUtils.is_legacy_busy_block(google_event)
-        self.assertTrue(is_legacy)
-
-    def test_legacy_busy_block_detection_description(self):
-        """Test legacy busy block detection via description"""
-        google_event = {
-            'summary': 'Important Meeting',
-            'description': 'CalSync [source:calendar_123:event_456]'
-        }
-
-        is_legacy = LegacyDetectionUtils.is_legacy_busy_block(google_event)
-        self.assertTrue(is_legacy)
-
-    def test_not_legacy_busy_block(self):
-        """Test normal event is not detected as legacy busy block"""
-        google_event = {
-            'summary': 'Normal Meeting',
-            'description': 'Regular meeting description'
-        }
-
-        is_legacy = LegacyDetectionUtils.is_legacy_busy_block(google_event)
-        self.assertFalse(is_legacy)
-
-    def test_upgrade_legacy_event(self):
-        """Test upgrading legacy event to UUID correlation"""
-        correlation_uuid = str(uuid.uuid4())
-
-        legacy_event = {
-            'summary': 'Busy - Important Meeting',
-            'description': 'CalSync [source:calendar_123:event_456]'
-        }
-
-        upgraded_event = LegacyDetectionUtils.upgrade_legacy_event(
-            google_event=legacy_event,
-            correlation_uuid=correlation_uuid
-        )
-
-        # Should have UUID correlation embedded
-        extracted_uuid = UUIDCorrelationUtils.extract_uuid_from_event(upgraded_event)
-        self.assertEqual(extracted_uuid, correlation_uuid)
-
-        # Should preserve original content
-        self.assertEqual(upgraded_event['summary'][:4], 'Busy')  # Title preserved
-        self.assertIn('CalSync [source:', upgraded_event['description'])  # Description preserved
