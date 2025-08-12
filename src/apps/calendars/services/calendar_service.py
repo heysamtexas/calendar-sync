@@ -464,6 +464,8 @@ class CalendarService(BaseService):
             target_calendar=target_calendar,
             source_uuid=source_event.uuid,
             title=source_event.title or "Event",
+            start_time=source_event.start_time,
+            end_time=source_event.end_time,
         )
 
         # Create in Google Calendar

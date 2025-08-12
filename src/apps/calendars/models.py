@@ -929,6 +929,12 @@ class EventState(models.Model):
                 {"source_uuid": "User events cannot have a source_uuid"}
             )
 
+        # Validate that busy blocks have start and end times to prevent null timestamp bugs
+        if self.is_busy_block and (not self.start_time or not self.end_time):
+            raise ValidationError(
+                {"start_time": "Busy blocks must have start_time and end_time to prevent sync issues"}
+            )
+
     def mark_synced(self, google_event_id):
         """Mark event as synchronized with Google Calendar"""
         self.google_event_id = google_event_id
@@ -973,7 +979,7 @@ class EventState(models.Model):
         )
 
     @classmethod
-    def create_busy_block(cls, target_calendar, source_uuid, title=""):
+    def create_busy_block(cls, target_calendar, source_uuid, title="", start_time=None, end_time=None):
         """Create EventState for a busy block (pending sync)"""
         return cls.objects.create(
             calendar=target_calendar,
@@ -981,6 +987,8 @@ class EventState(models.Model):
             is_busy_block=True,
             source_uuid=source_uuid,
             title=f"Busy - {title}",
+            start_time=start_time,
+            end_time=end_time,
         )
 
     @classmethod
