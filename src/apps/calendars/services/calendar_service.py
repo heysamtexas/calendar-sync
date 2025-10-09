@@ -210,7 +210,7 @@ class CalendarService(BaseService):
         """Get calendar statistics for user"""
         stats = CalendarAccount.objects.filter(user=self.user).aggregate(
             total_accounts=models.Count("id"),
-            active_accounts=models.Count("id", filter=models.Q(is_active=True)),
+            active_accounts=models.Count("id", filter=models.Q(status='ACTIVE')),
             total_calendars=models.Count("calendars"),
             sync_enabled_calendars=models.Count(
                 "calendars", filter=models.Q(calendars__sync_enabled=True)
@@ -412,7 +412,7 @@ class CalendarService(BaseService):
             other_calendars = Calendar.objects.filter(
                 calendar_account__user=target_calendar.calendar_account.user,
                 sync_enabled=True,
-                calendar_account__is_active=True,
+                calendar_account__status='ACTIVE',
             ).exclude(id=target_calendar.id)
 
             repairs_made = 0
@@ -538,10 +538,21 @@ class CalendarService(BaseService):
                 f"Gone Gone cleanup completed: calendar={calendar.name}, "
                 f"local_events={local_cleaned}, outbound_blocks={outbound_cleaned}"
             )
+            
+            return {
+                'success': True,
+                'events_deleted': local_cleaned + outbound_cleaned,
+                'local_events_deleted': local_cleaned,
+                'outbound_blocks_deleted': outbound_cleaned
+            }
 
         except Exception as e:
             self.logger.error(f"Gone Gone cleanup failed for {calendar.name}: {e}")
-            raise
+            return {
+                'success': False,
+                'error': str(e),
+                'events_deleted': 0
+            }
 
     def _analyze_cleanup_scope(self, calendar):
         """Analyze what will be cleaned up (for logging/stats)"""
@@ -721,7 +732,7 @@ class CalendarService(BaseService):
             Calendar.objects.filter(
                 calendar_account__user=calendar.calendar_account.user,
                 sync_enabled=True,
-                calendar_account__is_active=True,
+                calendar_account__status='ACTIVE',
             )
             .exclude(id=calendar.id)
             .select_related("calendar_account")

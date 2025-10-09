@@ -12,12 +12,12 @@ class CalendarAccountAdmin(admin.ModelAdmin):
     list_display = (
         "email",
         "user",
-        "is_active",
+        "status",
         "token_expires_at",
         "get_last_sync",
         "created_at",
     )
-    list_filter = ("is_active", "created_at", "token_expires_at")
+    list_filter = ("status", "created_at", "token_expires_at")
     search_fields = ("email", "user__username", "google_account_id")
     readonly_fields = (
         "google_account_id",
@@ -32,7 +32,7 @@ class CalendarAccountAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Account Info",
-            {"fields": ("user", "email", "google_account_id", "is_active")},
+            {"fields": ("user", "email", "google_account_id", "status")},
         ),
         (
             "Token Info",
@@ -81,7 +81,7 @@ class CalendarAdmin(admin.ModelAdmin):
         "webhook_expires_at",
         "created_at",
     )
-    list_filter = ("sync_enabled", "created_at", "calendar_account__is_active")
+    list_filter = ("sync_enabled", "created_at", "calendar_account__status")
     search_fields = ("name", "google_calendar_id", "calendar_account__email")
     readonly_fields = (
         "google_calendar_id",

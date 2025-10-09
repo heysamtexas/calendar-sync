@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load account_tags %}
 
 {% block title %}{{ account.email }} - Calendar Sync Tool{% endblock %}
 
@@ -24,13 +25,7 @@
                     </tr>
                     <tr>
                         <td><strong>Status:</strong></td>
-                        <td>
-                            {% if account.is_active %}
-                                <span class="badge bg-success">Active</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
-                            {% endif %}
-                        </td>
+                        <td>{% account_status_badge account %}</td>
                     </tr>
                     <tr>
                         <td><strong>Connected:</strong></td>
@@ -207,12 +202,29 @@
                    data-confirm-message="Are you sure you want to disconnect this account? This will remove all calendars and sync data."
                    aria-describedby="disconnect-help">Disconnect Account</a>
                 <span id="disconnect-help" class="visually-hidden">Permanently disconnect and remove this Google Calendar account</span>
-            {% else %}
-                <button type="button" class="btn btn-success" disabled aria-describedby="reactivate-help">Reactivate Account</button>
-                <span id="reactivate-help" class="visually-hidden">Account reactivation functionality coming soon</span>
-                
-                <button type="button" class="btn btn-danger" disabled aria-describedby="remove-help">Remove Account</button>
-                <span id="remove-help" class="visually-hidden">Account removal functionality coming soon</span>
+            {% elif account.status == 'DISCONNECTING' %}
+                <div class="alert alert-info" role="alert">
+                    <strong>Disconnection in Progress</strong><br>
+                    Your account is being disconnected and busy blocks are being cleaned up. 
+                    This process typically completes within 15-30 minutes.
+                    {% if account.cleanup_retry_count > 0 %}
+                        <br><small class="text-muted">Cleanup attempt {{ account.cleanup_retry_count }} in progress.</small>
+                    {% endif %}
+                </div>
+            {% elif account.status == 'CLEANUP_FAILED' %}
+                <div class="alert alert-danger" role="alert">
+                    <strong>Cleanup Failed</strong><br>
+                    Account disconnection encountered persistent issues. Support has been notified.
+                    Some calendar events may remain in your Google Calendar.
+                    {% if account.cleanup_last_error %}
+                        <br><small class="text-muted">Last error: {{ account.cleanup_last_error|truncatechars:100 }}</small>
+                    {% endif %}
+                </div>
+            {% elif account.status == 'DISCONNECTED' %}
+                <div class="alert alert-secondary" role="alert">
+                    <strong>Account Disconnected</strong><br>
+                    This account has been successfully disconnected and will be removed shortly.
+                </div>
             {% endif %}
         </div>
     </div>

@@ -93,7 +93,7 @@ class Command(BaseCommand):
                 calendars = Calendar.objects.filter(
                     calendar_account__user=user,
                     sync_enabled=True,
-                    calendar_account__is_active=True,
+                    calendar_account__status='ACTIVE',
                     cleanup_pending=False,  # Exclude calendars in cleanup state
                 ).select_related("calendar_account__user")
                 return list(calendars)
@@ -104,7 +104,7 @@ class Command(BaseCommand):
             # Sync all active calendars
             calendars = Calendar.objects.filter(
                 sync_enabled=True,
-                calendar_account__is_active=True,
+                calendar_account__status='ACTIVE',
                 cleanup_pending=False,  # Exclude calendars in cleanup state
             ).select_related("calendar_account__user")
             return list(calendars)

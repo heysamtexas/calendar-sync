@@ -28,16 +28,39 @@ class OAuthService(BaseService):
                 # This ensures each Google account creates a separate CalendarAccount record
                 google_account_id = email
 
-                # Create or update account
-                account, created = CalendarAccount.objects.update_or_create(
-                    user=self.user,
-                    google_account_id=google_account_id,
-                    defaults={
-                        "email": email,
-                        "token_expires_at": expires_at,
-                        "is_active": True,
-                    },
-                )
+                # Check for existing disconnected account (prevents reconnection during cleanup)
+                try:
+                    existing_account = CalendarAccount.objects.get(
+                        user=self.user, google_account_id=google_account_id
+                    )
+
+                    if not existing_account.is_active:
+                        # Account is being disconnected - prevent reconnection
+                        return {
+                            "success": False,
+                            "message": (
+                                f"Account {email} is being disconnected and busy blocks are being cleaned up. "
+                                "Please wait for cleanup to complete before reconnecting."
+                            ),
+                        }
+
+                    # Account exists and is active - update it
+                    existing_account.email = email
+                    existing_account.token_expires_at = expires_at
+                    existing_account.save(update_fields=["email", "token_expires_at"])
+                    account = existing_account
+                    created = False
+
+                except CalendarAccount.DoesNotExist:
+                    # Account doesn't exist - create new one
+                    account = CalendarAccount.objects.create(
+                        user=self.user,
+                        google_account_id=google_account_id,
+                        email=email,
+                        token_expires_at=expires_at,
+                        status='ACTIVE',
+                    )
+                    created = True
 
                 # Set encrypted tokens
                 account.set_access_token(credentials.token)
@@ -161,29 +184,41 @@ class OAuthService(BaseService):
             }
 
     def disconnect_account(self, account_id):
-        """Safely disconnect an OAuth account"""
+        """Immediate user feedback with background cleanup (Guilfoyle-approved)"""
         try:
             account = CalendarAccount.objects.get(id=account_id, user=self.user)
 
             email = account.email
-            calendar_count = account.calendars.count()
+            total_calendars = account.calendars.count()
 
             with transaction.atomic():
-                # Deactivate first, then delete
-                account.is_active = False
-                account.save()
-                account.delete()
+                # Immediate status change - never fails
+                from django.utils import timezone
+                account.status = 'DISCONNECTING'
+                account.disconnect_requested_at = timezone.now()
+                account.save(update_fields=['status', 'disconnect_requested_at'])
+
+            # Queue background cleanup - don't wait for it
+            try:
+                from .background_cleanup import cleanup_account_background
+                cleanup_account_background.delay(account_id)
+                self.logger.info(f"Background cleanup queued for account {account_id}")
+            except Exception as e:
+                # Log error but don't fail the disconnect - cleanup can be retried later
+                self.logger.error(f"Failed to queue background cleanup for account {account_id}: {e}")
 
             self._log_operation(
-                "account_disconnect",
+                "account_disconnect_initiated",
                 account_id=account_id,
                 email=email,
-                calendar_count=calendar_count,
+                total_calendars=total_calendars,
+                status="DISCONNECTING"
             )
 
             return {
                 "success": True,
-                "message": f"Disconnected {email} and removed {calendar_count} calendars.",
+                "message": f"Account {email} disconnected successfully. Cleanup in progress - busy blocks will be removed automatically.",
+                "status": "disconnecting"
             }
 
         except CalendarAccount.DoesNotExist:

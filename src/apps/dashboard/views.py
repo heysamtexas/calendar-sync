@@ -117,7 +117,7 @@ def global_manual_sync(request: HttpRequest) -> HttpResponse:
         user_calendars = Calendar.objects.filter(
             calendar_account__user=request.user,
             sync_enabled=True,
-            calendar_account__is_active=True
+            calendar_account__status='ACTIVE'
         )
 
         total_calendars = 0

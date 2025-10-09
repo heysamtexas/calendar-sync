@@ -83,7 +83,7 @@ class GoogleWebhookView(View):
                 calendar = Calendar.objects.get(
                     webhook_channel_id=channel_id,
                     sync_enabled=True,
-                    calendar_account__is_active=True,
+                    calendar_account__status='ACTIVE',
                 )
 
             except Calendar.DoesNotExist:
@@ -92,7 +92,7 @@ class GoogleWebhookView(View):
                     calendar = Calendar.objects.get(
                         google_calendar_id=calendar_id,
                         sync_enabled=True,
-                        calendar_account__is_active=True,
+                        calendar_account__status='ACTIVE',
                     )
                 except Calendar.DoesNotExist:
                     logger.warning(

@@ -66,7 +66,7 @@ class Command(BaseCommand):
         """Setup webhooks for all active sync-enabled calendars (cron-safe)"""
 
         calendars = Calendar.objects.filter(
-            sync_enabled=True, calendar_account__is_active=True
+            sync_enabled=True, calendar_account__status='ACTIVE'
         ).select_related("calendar_account")
 
         if not calendars.exists():
@@ -132,7 +132,7 @@ class Command(BaseCommand):
 
         try:
             calendar = Calendar.objects.get(
-                id=calendar_id, sync_enabled=True, calendar_account__is_active=True
+                id=calendar_id, sync_enabled=True, calendar_account__status='ACTIVE'
             )
         except Calendar.DoesNotExist:
             self.stdout.write(

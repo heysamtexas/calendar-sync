@@ -358,7 +358,7 @@ class UUIDCorrelationSyncEngine:
             Calendar.objects.filter(
                 calendar_account__user=source_calendar.calendar_account.user,
                 sync_enabled=True,
-                calendar_account__is_active=True,
+                calendar_account__status='ACTIVE',
             )
             .exclude(id=source_calendar.id)
             .select_related("calendar_account")
