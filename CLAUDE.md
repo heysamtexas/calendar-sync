@@ -264,8 +264,14 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 Add this to your crontab (`crontab -e`):
 
 ```bash
+# Main sync every 5 minutes
+*/5 * * * * cd /home/user/src/calendar-bridge-clone && uv run python src/manage.py sync_calendars
+
 # Refresh OAuth tokens every hour to prevent expiration
-0 * * * * cd /home/sheraz/src/calendar-bridge-clone && uv run python src/manage.py refresh_tokens
+0 * * * * cd /home/user/src/calendar-bridge-clone && uv run python src/manage.py refresh_tokens
+
+# Cleanup disabled calendars and disconnected accounts every 15 minutes
+*/15 * * * * cd /home/user/src/calendar-bridge-clone && uv run python src/manage.py cleanup_disabled_calendars
 ```
 
 #### Token Refresh Commands
