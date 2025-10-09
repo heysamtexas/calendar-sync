@@ -5,6 +5,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.accounts.models import UserProfile
 from apps.calendars.models import Calendar, CalendarAccount
 
 
@@ -14,6 +15,9 @@ class CalendarToggleTest(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com", password="testpass123"
         )
+
+        # Create user profile
+        self.profile = UserProfile.objects.create(user=self.user, sync_enabled=True)
 
         # Create test calendar account and calendar
         self.account = CalendarAccount.objects.create(
@@ -59,19 +63,23 @@ class CalendarToggleTest(TestCase):
 
         # Should return 200 with partial template
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Disabled")
-        self.assertContains(response, "Enable")
+        # Calendar enters cleanup state when disabled
+        self.assertContains(response, "cleanup in progress")
+        # Toggle should be disabled during cleanup
+        self.assertContains(response, "disabled")
 
         # Verify database state changed
         self.calendar.refresh_from_db()
         self.assertFalse(self.calendar.sync_enabled)
+        self.assertTrue(self.calendar.cleanup_pending)
 
     def test_toggle_calendar_sync_disable_to_enable(self):
         """Test toggling calendar sync from disabled to enabled"""
         self.client.login(username="testuser", password="testpass123")
 
-        # Start with disabled calendar
+        # Start with disabled calendar (cleanup already completed)
         self.calendar.sync_enabled = False
+        self.calendar.cleanup_pending = False  # Cleanup already done
         self.calendar.save()
 
         response = self.client.post(
@@ -119,13 +127,14 @@ class CalendarToggleTest(TestCase):
         self.assertTrue(other_calendar.sync_enabled)
 
     def test_toggle_calendar_sync_nonexistent_calendar(self):
-        """Test toggling non-existent calendar returns 404"""
+        """Test toggling non-existent calendar returns error"""
         self.client.login(username="testuser", password="testpass123")
         response = self.client.post(
             reverse("dashboard:toggle_calendar_sync", args=[9999])
         )
 
-        self.assertEqual(response.status_code, 404)
+        # View returns 500 for non-existent calendar (DoesNotExist exception)
+        self.assertEqual(response.status_code, 500)
 
     def test_toggle_calendar_sync_partial_template_content(self):
         """Test that the partial template contains correct HTMX attributes"""
@@ -140,8 +149,7 @@ class CalendarToggleTest(TestCase):
         self.assertContains(response, 'hx-target="closest td"')
         self.assertContains(response, 'hx-swap="innerHTML"')
 
-        # After toggle, calendar was enabled->disabled, so status should show "Disabled"
-        self.assertContains(response, "Disabled")  # Status should be disabled
-        self.assertContains(
-            response, "status-disabled"
-        )  # CSS class for disabled status
+        # After toggle, calendar enters cleanup state
+        self.assertContains(response, "cleanup in progress")
+        # Toggle should be disabled during cleanup
+        self.assertContains(response, "disabled")

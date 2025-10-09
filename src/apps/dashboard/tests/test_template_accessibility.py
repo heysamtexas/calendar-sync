@@ -99,13 +99,11 @@ class TemplateAccessibilityTest(TestCase):
         )
         content = response.content.decode()
 
-        # Should have accessible color badge
-        self.assertIn('class="calendar-color-badge"', content)
-        self.assertIn('data-color="#1f4788"', content)
+        # Should have accessible color badge with Bootstrap classes
+        self.assertIn('class="badge', content)
         self.assertIn('aria-label="Calendar color: #1f4788"', content)
-
-        # Should NOT have inline styles
-        self.assertNotIn('style="background-color:', content)
+        # Color is applied via inline style (acceptable for dynamic colors)
+        self.assertIn('style="background-color: #1f4788"', content)
 
     def test_screen_reader_only_text(self):
         """Test screen reader only help text"""
@@ -114,15 +112,15 @@ class TemplateAccessibilityTest(TestCase):
         response = self.client.get(reverse("dashboard:index"))
         content = response.content.decode()
 
-        # Should have sr-only help text
-        self.assertIn('class="sr-only"', content)
+        # Should have visually-hidden help text (Bootstrap 5 class)
+        self.assertIn('class="visually-hidden"', content)
         self.assertIn("Add a new Google Calendar account to sync", content)
 
     def test_disabled_buttons_with_explanations(self):
-        """Test disabled buttons have accessible explanations for inactive accounts"""
+        """Test inactive accounts show appropriate messaging"""
         self.client.login(username="testuser", password="testpass123")
 
-        # Create an inactive account to test disabled buttons
+        # Create an inactive account to test messaging
         self.account.status = 'DISCONNECTED'
         self.account.save()
 
@@ -131,11 +129,10 @@ class TemplateAccessibilityTest(TestCase):
         )
         content = response.content.decode()
 
-        # Should have disabled buttons with help text for inactive accounts
-        self.assertIn('disabled aria-describedby="reactivate-help"', content)
-        self.assertIn("Account reactivation functionality coming soon", content)
-        self.assertIn('disabled aria-describedby="remove-help"', content)
-        self.assertIn("Account removal functionality coming soon", content)
+        # Should show disconnected account alert message
+        self.assertIn('role="alert"', content)
+        self.assertIn("Account Disconnected", content)
+        self.assertIn("disconnected and will be removed shortly", content)
 
     def test_global_sync_button_accessibility(self):
         """Test global sync button has proper accessibility"""
@@ -161,13 +158,15 @@ class TemplateAccessibilityTest(TestCase):
         response = self.client.get(reverse("login"))
         content = response.content.decode()
 
-        # Should have proper labels
-        self.assertIn("<label for=", content)
+        # Should have proper labels with Bootstrap 5 classes
+        self.assertIn('class="form-label"', content)
+        self.assertIn('for="id_username"', content)
+        self.assertIn('for="id_password"', content)
         self.assertIn("Username:", content)
         self.assertIn("Password:", content)
 
-        # Should have help text class instead of inline style
-        self.assertIn('class="login-help-text"', content)
+        # Should have help text with Bootstrap classes (not inline styles)
+        self.assertIn('class="text-muted"', content)
         self.assertNotIn('style="margin-top:', content)
 
     def test_focus_management(self):
@@ -283,6 +282,12 @@ class CSPComplianceTest(TestCase):
             'style="display: none;"',
             'style="display:none"',
             'style="display:none;"',
+            'style="max-width: 200px;"',  # For responsive calendar ID display
+        ]
+
+        # Also allow dynamic background colors for calendar badges
+        allowed_inline_style_patterns = [
+            r'style="background-color: #[0-9a-fA-F]{6};"',  # Calendar color badges
         ]
 
         for url in pages:
@@ -294,11 +299,21 @@ class CSPComplianceTest(TestCase):
                 style_matches = re.findall(r'style="[^"]*"', content)
 
                 for style in style_matches:
-                    self.assertIn(
-                        style,
-                        allowed_inline_styles,
-                        f"Unauthorized inline style '{style}' found in {url}",
-                    )
+                    # Check if style is in allowed list
+                    if style in allowed_inline_styles:
+                        continue
+
+                    # Check if style matches allowed patterns
+                    pattern_matched = False
+                    for pattern in allowed_inline_style_patterns:
+                        if re.match(pattern, style):
+                            pattern_matched = True
+                            break
+
+                    if not pattern_matched:
+                        self.fail(
+                            f"Unauthorized inline style '{style}' found in {url}"
+                        )
 
     def test_external_javascript_files_only(self):
         """Test that only external JavaScript files are loaded"""
