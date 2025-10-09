@@ -24,7 +24,6 @@ class DashboardIntegrationTest(TestCase):
             user=self.user,
             email="personal@gmail.com",
             google_account_id="personal_account",
-            is_active=True,
             token_expires_at=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -32,7 +31,6 @@ class DashboardIntegrationTest(TestCase):
             user=self.user,
             email="work@company.com",
             google_account_id="work_account",
-            is_active=True,
             token_expires_at=timezone.now() + timezone.timedelta(hours=1),
         )
 

@@ -20,7 +20,6 @@ class CalendarToggleTest(TestCase):
             user=self.user,
             email="test@gmail.com",
             google_account_id="test_account_id",
-            is_active=True,
             token_expires_at=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -98,7 +97,6 @@ class CalendarToggleTest(TestCase):
             user=other_user,
             email="other@gmail.com",
             google_account_id="other_account_id",
-            is_active=True,
             token_expires_at=timezone.now() + timezone.timedelta(hours=1),
         )
         other_calendar = Calendar.objects.create(

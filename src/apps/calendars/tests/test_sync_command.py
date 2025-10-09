@@ -43,7 +43,6 @@ class SyncCalendarsCommandTest(TestCase):
             access_token="encrypted_token",
             refresh_token="encrypted_refresh",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         # Create calendars
@@ -80,7 +79,6 @@ class SyncCalendarsCommandTest(TestCase):
             access_token="encrypted_token2",
             refresh_token="encrypted_refresh2",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
         self.calendar3 = Calendar.objects.create(
             calendar_account=self.account2,
@@ -224,7 +222,7 @@ class SyncCalendarsCommandTest(TestCase):
     def test_force_sync_inactive_calendar(self, mock_sync):
         """Test force syncing inactive calendar"""
         # Deactivate account
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
 
         mock_sync.return_value = {
@@ -288,7 +286,6 @@ class SyncCalendarsCommandIntegrationTest(TestCase):
             access_token="encrypted_token",
             refresh_token="encrypted_refresh",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
     @patch('apps.calendars.services.google_calendar_client.GoogleCalendarClient')

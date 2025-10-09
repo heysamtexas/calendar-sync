@@ -200,12 +200,12 @@ class CalendarModelTest(TestCase):
         # Account inactive
         calendar.sync_enabled = True
         calendar.save()
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
         self.assertFalse(calendar.should_sync)
 
         # User profile sync disabled
-        self.account.is_active = True
+        self.account.status = 'ACTIVE'
         self.account.save()
         self.profile.sync_enabled = False
         self.profile.save()

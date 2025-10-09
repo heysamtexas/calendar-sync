@@ -71,7 +71,8 @@ class UUIDCorrelationSyncEngine:
 
                 if classification["action"] == "process_new_user_event":
                     # Brand new user event - needs UUID correlation and busy blocks
-                    event_state = self._create_user_event_state(calendar, google_event)
+                    existing_uuid = classification.get("uuid")  # May be None for truly new events
+                    event_state = self._create_user_event_state(calendar, google_event, existing_uuid)
                     new_user_events.append(event_state)
                     self.sync_results["user_events_found"] += 1
 
@@ -157,58 +158,94 @@ class UUIDCorrelationSyncEngine:
                     "uuid": correlation_uuid,
                     "method": "uuid_correlation",
                 }
-            # Check if this user event has changes that need busy block updates
-            elif self._has_user_event_changes(correlation_uuid, google_event):
+            
+            # Check if EventState exists for this UUID
+            try:
+                event_state = EventState.objects.by_uuid(correlation_uuid)
+                if not event_state:
+                    # Event has UUID but no EventState - treat as new user event
+                    return {
+                        "action": "process_new_user_event", 
+                        "uuid": correlation_uuid,
+                        "method": "uuid_correlation_orphaned"
+                    }
+                
+                # EventState exists - check if it needs updates
+                if self._has_user_event_changes(correlation_uuid, google_event):
+                    return {
+                        "action": "update_user_event",
+                        "uuid": correlation_uuid,
+                        "method": "uuid_correlation_update",
+                    }
+                else:
+                    return {
+                        "action": "update_seen",
+                        "uuid": correlation_uuid,
+                        "method": "uuid_correlation",
+                    }
+            except Exception as e:
+                logger.error(f"Error checking EventState for UUID {correlation_uuid}: {e}")
+                # Fallback to treating as new user event
                 return {
-                    "action": "update_user_event",
-                    "uuid": correlation_uuid,
-                    "method": "uuid_correlation_update",
-                }
-            else:
-                return {
-                    "action": "update_seen",
-                    "uuid": correlation_uuid,
-                    "method": "uuid_correlation",
+                    "action": "process_new_user_event",
+                    "uuid": correlation_uuid, 
+                    "method": "uuid_correlation_fallback"
                 }
 
         # No UUID correlation = new user event
         return {"action": "process_new_user_event", "method": "no_correlation"}
 
     def _create_user_event_state(
-        self, calendar: Calendar, google_event: dict[str, Any]
+        self, calendar: Calendar, google_event: dict[str, Any], existing_uuid: str = None
     ) -> EventState:
         """
         Create EventState for new user event with UUID correlation
 
         YOLO: Database-first = authoritative source of truth
+        
+        Args:
+            existing_uuid: If provided, use this UUID instead of generating new one
         """
         with transaction.atomic():
             # Create EventState first - CLEAN title to prevent UUID contamination from Google
             raw_title = google_event.get("summary", "")
             clean_title = UUIDCorrelationUtils.clean_title_for_display(raw_title)
 
-            event_state = EventState.create_user_event(
-                calendar=calendar,
-                google_event_id=google_event["id"],
-                title=clean_title,
-                start_time=self._parse_event_datetime(google_event.get("start")),
-                end_time=self._parse_event_datetime(google_event.get("end")),
-            )
-
-            # Add UUID correlation to Google event
-            client = GoogleCalendarClient(calendar.calendar_account)
-            updated_event = client.update_event_with_uuid_correlation(
-                calendar_id=calendar.google_calendar_id,
-                google_event_id=google_event["id"],
-                correlation_uuid=str(event_state.uuid),
-            )
-
-            if updated_event:
-                logger.info(f"Created user event state with UUID {event_state.uuid}")
-            else:
-                logger.warning(
-                    f"Failed to add UUID correlation to Google event {google_event['id']}"
+            if existing_uuid:
+                # Event already has UUID correlation - create EventState with that UUID
+                event_state = EventState.create_user_event(
+                    calendar=calendar,
+                    google_event_id=google_event["id"],
+                    title=clean_title,
+                    start_time=self._parse_event_datetime(google_event.get("start")),
+                    end_time=self._parse_event_datetime(google_event.get("end")),
+                    uuid=existing_uuid,
                 )
+                logger.info(f"Created EventState for existing UUID {existing_uuid}")
+            else:
+                # New event - create EventState with new UUID
+                event_state = EventState.create_user_event(
+                    calendar=calendar,
+                    google_event_id=google_event["id"],
+                    title=clean_title,
+                    start_time=self._parse_event_datetime(google_event.get("start")),
+                    end_time=self._parse_event_datetime(google_event.get("end")),
+                )
+
+                # Add UUID correlation to Google event
+                client = GoogleCalendarClient(calendar.calendar_account)
+                updated_event = client.update_event_with_uuid_correlation(
+                    calendar_id=calendar.google_calendar_id,
+                    google_event_id=google_event["id"],
+                    correlation_uuid=str(event_state.uuid),
+                )
+
+                if updated_event:
+                    logger.info(f"Created user event state with new UUID {event_state.uuid}")
+                else:
+                    logger.warning(
+                        f"Failed to add UUID correlation to Google event {google_event['id']}"
+                    )
 
             return event_state
 
@@ -265,6 +302,8 @@ class UUIDCorrelationSyncEngine:
                 target_calendar=target_calendar,
                 source_uuid=source_event_state.uuid,
                 title=source_event_state.title or "Event",
+                start_time=source_event_state.start_time,
+                end_time=source_event_state.end_time,
             )
 
             # Create busy block in Google Calendar with UUID correlation

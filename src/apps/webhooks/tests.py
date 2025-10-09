@@ -35,7 +35,6 @@ class GoogleWebhookViewTests(TestCase):
             access_token="encrypted_access_token",
             refresh_token="encrypted_refresh_token",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         self.calendar = Calendar.objects.create(
@@ -150,7 +149,6 @@ class WebhookUUIDIntegrationTests(TestCase):
             access_token="encrypted_access_token",
             refresh_token="encrypted_refresh_token",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         self.calendar = Calendar.objects.create(
@@ -214,7 +212,6 @@ class WebhookCoordinationTests(TestCase):
             access_token="encrypted_access_token",
             refresh_token="encrypted_refresh_token",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         self.calendar = Calendar.objects.create(

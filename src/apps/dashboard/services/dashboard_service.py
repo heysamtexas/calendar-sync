@@ -135,7 +135,7 @@ class DashboardService(BaseService):
         # Calendar activity
         calendar_stats = CalendarAccount.objects.filter(user=self.user).aggregate(
             total_accounts=models.Count("id"),
-            active_accounts=models.Count("id", filter=models.Q(is_active=True)),
+            active_accounts=models.Count("id", filter=models.Q(status='ACTIVE')),
             total_calendars=models.Count("calendars"),
             sync_enabled_calendars=models.Count(
                 "calendars", filter=models.Q(calendars__sync_enabled=True)
@@ -162,14 +162,14 @@ class DashboardService(BaseService):
         issues = []
 
         # Check for inactive accounts
-        inactive_accounts = CalendarAccount.objects.filter(
-            user=self.user, is_active=False
+        inactive_accounts = CalendarAccount.objects.exclude(
+            user=self.user, status='ACTIVE'
         ).count()
         if inactive_accounts > 0:
             issues.append(f"{inactive_accounts} inactive account(s) need attention")
 
         # Check for expired tokens
-        expired_tokens = CalendarAccount.objects.filter(user=self.user, is_active=True)
+        expired_tokens = CalendarAccount.objects.filter(user=self.user, status='ACTIVE')
         expired_count = sum(1 for account in expired_tokens if account.is_token_expired)
         if expired_count > 0:
             issues.append(f"{expired_count} account(s) have expired tokens")
@@ -184,8 +184,8 @@ class DashboardService(BaseService):
             issues.append(f"{recent_failures} recent sync failure(s)")
 
         # Check for calendars with sync enabled but account inactive
-        orphaned_calendars = CalendarAccount.objects.filter(
-            user=self.user, is_active=False
+        orphaned_calendars = CalendarAccount.objects.exclude(
+            user=self.user, status='ACTIVE'
         ).aggregate(
             orphaned=models.Count(
                 "calendars", filter=models.Q(calendars__sync_enabled=True)

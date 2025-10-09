@@ -35,7 +35,6 @@ class TokenManagerSimpleTest(TestCase):
             access_token="",
             refresh_token="",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
         # Set test tokens
         self.account.set_access_token("test_access_token")
@@ -53,7 +52,7 @@ class TokenManagerSimpleTest(TestCase):
 
     def test_get_valid_credentials_inactive_account(self):
         """Test get_valid_credentials with inactive account"""
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
 
         manager = TokenManager(self.account)
@@ -215,7 +214,6 @@ class TokenManagerSimpleTest(TestCase):
             access_token="token2",
             refresh_token="refresh2",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         # Make second account have no tokens (will fail)

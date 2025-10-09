@@ -27,6 +27,39 @@ echo "Environment validated for AI agent development"
 - **REQUIRED** maintain ≥75% test coverage for all new code
 - **ESSENTIAL** validate every command with success/failure checking
 
+### AI Agent Anti-Bravado Protocol
+**CRITICAL: Overconfidence Prevention - DO NOT IGNORE:**
+
+**MANDATORY behaviors for AI agents:**
+
+1. **NEVER declare success without verification**
+   - Always re-check results immediately after any cleanup
+   - Use phrases like "appears to be fixed" not "successfully fixed"
+   - Verify violations are actually resolved, don't assume
+
+2. **Think before acting**
+   - When user says something is still broken, STOP and analyze
+   - Don't immediately jump to another "fix"
+   - Ask "what did I miss in my analysis?"
+
+3. **Humble language patterns**
+   - "Let me check if this worked..."
+   - "This should resolve the issue, let me verify..."
+   - "I may have missed something, let me re-examine..."
+
+4. **Verification checkpoints**
+   - After every cleanup: re-scan for violations
+   - After every fix: confirm the specific issue is resolved
+   - Before declaring success: show evidence of resolution
+
+**Red Flags - Stop Immediately If:**
+- User corrects you after you claimed success
+- You find yourself making multiple "fixes" for the same issue  
+- You're rushing to execute without deep analysis
+- You're making assumptions about what worked
+
+**Remember: Being wrong and learning is better than being overconfident and breaking things.**
+
 ### Quick Command Reference for AI Agents
 ```bash
 # Setup and validation
@@ -219,4 +252,79 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 - **Change SECRET_KEY** in production
 - **Use environment variables** in production deployment
 - **Rotate OAuth credentials** if compromised
+
+## Token Management and Maintenance
+
+### Automated Token Refresh (CRITICAL - Required for Production)
+
+**Google OAuth tokens expire every hour** and need refresh to maintain sync functionality. The system has automatic refresh during sync operations, but requires a **proactive cronjob** to prevent expiration during idle periods.
+
+#### Required Cronjob Setup
+
+Add this to your crontab (`crontab -e`):
+
+```bash
+# Refresh OAuth tokens every hour to prevent expiration
+0 * * * * cd /home/sheraz/src/calendar-bridge-clone && uv run python src/manage.py refresh_tokens
+```
+
+#### Token Refresh Commands
+
+```bash
+# Check token status for all accounts
+uv run python src/manage.py refresh_tokens --status
+
+# Refresh all accounts (verbose output - recommended for cron)
+uv run python src/manage.py refresh_tokens
+
+# Refresh specific account by ID
+uv run python src/manage.py refresh_tokens --account-id=1
+
+# Force refresh all accounts regardless of expiry
+uv run python src/manage.py refresh_tokens --force
+```
+
+#### Token Troubleshooting
+
+**Common Issues:**
+
+1. **Account Deactivated Due to Token Expiration**
+   - Symptom: Events stop syncing, account shows as inactive
+   - Cause: OAuth refresh token expired or revoked
+   - Solution: User must re-authorize via OAuth web interface
+
+2. **"invalid_grant" Errors**
+   - Symptom: `Permanent token error: invalid_grant: Token has been expired or revoked`
+   - Cause: Refresh token is permanently invalid
+   - Solution: Complete OAuth re-authorization required
+
+3. **Missing Events After Downtime**
+   - Symptom: Recent events don't create busy blocks
+   - Cause: Sync stopped due to token expiration
+   - Solution: Re-authorize account, then run manual sync
+
+#### Manual Token Operations
+
+```bash
+# Validate all account tokens and refresh as needed
+uv run python src/manage.py refresh_tokens
+
+# Check which accounts have token issues
+uv run python src/manage.py refresh_tokens --status
+
+# After OAuth re-authorization, sync missing events
+uv run python src/manage.py sync_calendars --user-email=user@example.com
+```
+
+#### Monitoring Token Health
+
+**Recommended monitoring:**
+- Check cron logs regularly for refresh failures
+- Monitor for "deactivated account" messages
+- Set up alerts for repeated token refresh failures
+
+**Signs of token issues:**
+- Events stop appearing in other calendars
+- Sync commands fail with authentication errors
+- Account status shows as inactive in admin interface
 ```

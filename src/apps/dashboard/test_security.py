@@ -28,7 +28,6 @@ class SecurityTest(TestCase):
             user=self.user,
             email="test@gmail.com",
             google_account_id="test123",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 
@@ -78,7 +77,6 @@ class SecurityTest(TestCase):
             user=other_user,
             email="other@gmail.com",
             google_account_id="other123",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
         other_calendar = Calendar.objects.create(
@@ -117,7 +115,6 @@ class TemplateSecurityTest(TestCase):
             user=self.user,
             email="test@gmail.com",
             google_account_id="test123",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 

@@ -26,7 +26,6 @@ class GlobalSyncTest(TestCase):
             user=self.user,
             email="test@gmail.com",
             google_account_id="test_account_id",
-            is_active=True,
             token_expires_at=timezone.now() + timezone.timedelta(hours=1),
         )
 

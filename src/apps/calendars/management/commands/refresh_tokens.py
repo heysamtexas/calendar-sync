@@ -106,7 +106,7 @@ class Command(BaseCommand):
         from apps.calendars.models import CalendarAccount
 
         try:
-            account = CalendarAccount.objects.get(id=account_id, is_active=True)
+            account = CalendarAccount.objects.get(id=account_id, status='ACTIVE')
             self.stdout.write(f"Refreshing tokens for account: {account.email}")
 
             # Use simplified token manager
@@ -135,7 +135,7 @@ class Command(BaseCommand):
 
         self.stdout.write("Force refreshing all active accounts...")
 
-        active_accounts = CalendarAccount.objects.filter(is_active=True)
+        active_accounts = CalendarAccount.objects.filter(status='ACTIVE')
         success_count = 0
         fail_count = 0
 

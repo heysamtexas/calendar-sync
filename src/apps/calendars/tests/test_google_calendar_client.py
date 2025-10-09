@@ -34,7 +34,6 @@ class GoogleCalendarClientTest(TestCase):
             access_token="",
             refresh_token="",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
         # Set test tokens
         self.account.set_access_token("test_access_token")
@@ -365,7 +364,6 @@ class GoogleCalendarClientTest(TestCase):
             access_token="",
             refresh_token="",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         client = GoogleCalendarClient(invalid_account)

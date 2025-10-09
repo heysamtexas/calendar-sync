@@ -135,7 +135,12 @@ class GoogleCalendarClient:
             if time_max is None:
                 time_max = timezone.now() + timedelta(days=90)
 
-            # Format times for Google API
+            # Format times for Google API (RFC3339 format required)
+            if time_min.tzinfo is None:
+                time_min = time_min.replace(tzinfo=timezone.get_current_timezone())
+            if time_max.tzinfo is None:
+                time_max = time_max.replace(tzinfo=timezone.get_current_timezone())
+            
             time_min_str = time_min.isoformat()
             time_max_str = time_max.isoformat()
 

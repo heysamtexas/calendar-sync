@@ -24,27 +24,27 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--batch-size',
+            "--batch-size",
             type=int,
-            default=getattr(settings, 'CLEANUP_BATCH_SIZE', 100),
-            help='Number of calendars to process in each batch'
+            default=getattr(settings, "CLEANUP_BATCH_SIZE", 100),
+            help="Number of calendars to process in each batch",
         )
         parser.add_argument(
-            '--min-age-seconds',
+            "--min-age-seconds",
             type=int,
             default=30,
-            help='Minimum age in seconds before processing cleanup request'
+            help="Minimum age in seconds before processing cleanup request",
         )
         parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Show what would be cleaned up without making changes'
+            "--dry-run",
+            action="store_true",
+            help="Show what would be cleaned up without making changes",
         )
 
     def handle(self, *args, **options):
-        batch_size = options['batch_size']
-        min_age_seconds = options['min_age_seconds']
-        dry_run = options['dry_run']
+        batch_size = options["batch_size"]
+        min_age_seconds = options["min_age_seconds"]
+        dry_run = options["dry_run"]
 
         if dry_run:
             self.stdout.write(
@@ -55,9 +55,8 @@ class Command(BaseCommand):
         cutoff_time = timezone.now() - timedelta(seconds=min_age_seconds)
 
         pending_calendars = Calendar.objects.filter(
-            cleanup_pending=True,
-            cleanup_requested_at__lt=cutoff_time
-        ).select_related('calendar_account')[:batch_size]
+            cleanup_pending=True, cleanup_requested_at__lt=cutoff_time
+        ).select_related("calendar_account")[:batch_size]
 
         if not pending_calendars:
             self.stdout.write("No calendars pending cleanup")
@@ -84,12 +83,10 @@ class Command(BaseCommand):
                     f"Failed to cleanup calendar {calendar.id} ({calendar.name}): {e}"
                 )
                 self.stdout.write(
-                    self.style.ERROR(
-                        f"Error cleaning up {calendar.name}: {e}"
-                    )
+                    self.style.ERROR(f"Error cleaning up {calendar.name}: {e}")
                 )
 
-        # Summary
+        # Summary for calendar cleanup
         if dry_run:
             self.stdout.write(
                 self.style.SUCCESS(
@@ -104,6 +101,12 @@ class Command(BaseCommand):
                 )
             )
 
+        # Process account deletions after calendar cleanup
+        if dry_run:
+            self._show_account_deletion_preview()
+        else:
+            self._process_account_deletions()
+
     def _show_cleanup_preview(self, calendar):
         """Show what would be cleaned up for this calendar"""
         # Count events that would be deleted
@@ -114,21 +117,24 @@ class Command(BaseCommand):
         # Count outbound busy blocks that would be deleted
         if user_events > 0:
             user_event_uuids = list(
-                calendar.event_states.filter(is_busy_block=False)
-                .values_list('uuid', flat=True)
+                calendar.event_states.filter(is_busy_block=False).values_list(
+                    "uuid", flat=True
+                )
             )
 
             from apps.calendars.models import EventState
-            outbound_busy_blocks = EventState.objects.filter(
-                source_uuid__in=user_event_uuids,
-                is_busy_block=True
-            ).exclude(calendar=calendar).count()
+
+            outbound_busy_blocks = (
+                EventState.objects.filter(
+                    source_uuid__in=user_event_uuids, is_busy_block=True
+                )
+                .exclude(calendar=calendar)
+                .count()
+            )
         else:
             outbound_busy_blocks = 0
 
-        self.stdout.write(
-            f"  📅 {calendar.name} ({calendar.calendar_account.email}):"
-        )
+        self.stdout.write(f"  📅 {calendar.name} ({calendar.calendar_account.email}):")
         self.stdout.write(f"    - Local events: {total_events}")
         self.stdout.write(f"    - User events: {user_events}")
         self.stdout.write(f"    - Local busy blocks: {busy_blocks}")
@@ -180,7 +186,7 @@ class Command(BaseCommand):
                 calendar.cleanup_pending = False
                 if cleanup_completed:
                     calendar.cleanup_requested_at = None
-                calendar.save(update_fields=['cleanup_pending', 'cleanup_requested_at'])
+                calendar.save(update_fields=["cleanup_pending", "cleanup_requested_at"])
 
                 self.logger.info(f"Cleared cleanup_pending flag for {calendar.name}")
             except Exception as e:
@@ -189,5 +195,143 @@ class Command(BaseCommand):
                     f"CRITICAL: Failed to clear cleanup_pending for calendar {calendar.id}: {e}"
                 )
                 self.stdout.write(
-                    self.style.ERROR(f"CRITICAL: Calendar {calendar.name} may be stuck in cleanup state")
+                    self.style.ERROR(
+                        f"CRITICAL: Calendar {calendar.name} may be stuck in cleanup state"
+                    )
                 )
+
+    def _show_account_deletion_preview(self):
+        """Show what accounts would be deleted (dry run mode)"""
+        from django.db.models import Count, Q
+        from apps.calendars.models import CalendarAccount
+
+        # Find inactive accounts with no pending calendar cleanups
+        ready_accounts = (
+            CalendarAccount.objects.exclude(status='ACTIVE')
+            .annotate(
+                pending_calendars=Count(
+                    "calendars", filter=Q(calendars__cleanup_pending=True)
+                )
+            )
+            .filter(pending_calendars=0)
+        )
+
+        if not ready_accounts.exists():
+            self.stdout.write("No accounts ready for deletion")
+            return
+
+        self.stdout.write(
+            f"Would delete {ready_accounts.count()} completed account disconnections:"
+        )
+        for account in ready_accounts:
+            calendar_count = account.calendars.count()
+            self.stdout.write(
+                f"  📧 {account.email} ({calendar_count} calendars cleaned up)"
+            )
+
+    def _process_account_deletions(self):
+        """Delete inactive accounts where all calendars have completed cleanup"""
+        from django.db.models import Count, Q
+        from apps.calendars.models import CalendarAccount
+
+        # Find inactive accounts with no pending calendar cleanups
+        ready_accounts = (
+            CalendarAccount.objects.exclude(status='ACTIVE')
+            .annotate(
+                pending_calendars=Count(
+                    "calendars", filter=Q(calendars__cleanup_pending=True)
+                )
+            )
+            .filter(pending_calendars=0)
+        )
+
+        if not ready_accounts.exists():
+            self.stdout.write("No accounts ready for deletion")
+            return
+
+        deleted_count = 0
+        for account in ready_accounts:
+            try:
+                # Cancel any remaining webhooks before deletion
+                self._cancel_account_webhooks(account)
+
+                email = account.email
+                calendar_count = account.calendars.count()
+
+                account.delete()  # CASCADE handles the rest
+
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"✅ Deleted account {email} ({calendar_count} calendars cleaned up)"
+                    )
+                )
+                self.logger.info(
+                    f"Completed account disconnection: {email} with {calendar_count} calendars"
+                )
+                deleted_count += 1
+
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to delete account {account.id} ({account.email}): {e}"
+                )
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"❌ Failed to delete account {account.email}: {e}"
+                    )
+                )
+
+        if deleted_count > 0:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Deleted {deleted_count} completed account disconnections"
+                )
+            )
+
+    def _cancel_account_webhooks(self, account):
+        """Cancel webhooks for account before deletion"""
+        try:
+            # Cancel webhooks for all calendars in this account
+            calendars_with_webhooks = account.calendars.filter(
+                webhook_channel_id__isnull=False
+            )
+
+            if not calendars_with_webhooks.exists():
+                return  # No webhooks to cancel
+
+            from apps.calendars.services.google_calendar_client import (
+                GoogleCalendarClient,
+            )
+
+            for calendar in calendars_with_webhooks:
+                try:
+                    client = GoogleCalendarClient(account)
+                    # Note: webhook cancellation might fail if tokens are already revoked
+                    # That's okay - webhooks will expire naturally
+                    if calendar.webhook_channel_id:
+                        self.logger.debug(
+                            f"Cancelling webhook {calendar.webhook_channel_id} for {calendar.name}"
+                        )
+                        # Webhook cancellation logic would go here
+                        # For now, just clear the webhook fields
+                        calendar.webhook_channel_id = None
+                        calendar.webhook_expires_at = None
+                        calendar.webhook_last_setup = None
+                        calendar.save(
+                            update_fields=[
+                                "webhook_channel_id",
+                                "webhook_expires_at",
+                                "webhook_last_setup",
+                            ]
+                        )
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to cancel webhook for calendar {calendar.name}: {e}. "
+                        f"Webhook will expire naturally."
+                    )
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to cancel webhooks for account {account.email}: {e}"
+            )
+            # Continue with account deletion even if webhook cancellation fails

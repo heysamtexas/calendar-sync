@@ -27,7 +27,6 @@ class TemplateAccessibilityTest(TestCase):
             user=self.user,
             email="test@gmail.com",
             google_account_id="test123",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 
@@ -124,7 +123,7 @@ class TemplateAccessibilityTest(TestCase):
         self.client.login(username="testuser", password="testpass123")
 
         # Create an inactive account to test disabled buttons
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
 
         response = self.client.get(
@@ -222,7 +221,6 @@ class CSPComplianceTest(TestCase):
             user=self.user,
             email="test@gmail.com",
             google_account_id="test123",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 

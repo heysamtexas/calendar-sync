@@ -146,8 +146,8 @@ class TokenManager:
     def _deactivate_account(self, reason: str):
         """Deactivate account when token refresh fails"""
         logger.error(f"Deactivating account {self.account.email}: {reason}")
-        self.account.is_active = False
-        self.account.save()
+        self.account.status = 'DISCONNECTED'
+        self.account.save(update_fields=['status'])
 
     def revoke_token(self) -> bool:
         """Revoke OAuth tokens (simplified - just clear local tokens)"""
@@ -159,15 +159,15 @@ class TokenManager:
             # Clear tokens and deactivate
             self.account.set_access_token("")
             self.account.set_refresh_token("")
-            self.account.is_active = False
-            self.account.save()
+            self.account.status = 'DISCONNECTED'
+            self.account.save(update_fields=['access_token', 'refresh_token', 'status'])
             return True
 
         except Exception as e:
             logger.error(f"Token clearing failed for {self.account.email}: {e}")
             # Still try to deactivate
-            self.account.is_active = False
-            self.account.save()
+            self.account.status = 'DISCONNECTED'
+            self.account.save(update_fields=['status'])
             return False
 
 
@@ -186,7 +186,7 @@ def revoke_token(account: CalendarAccount) -> bool:
 
 def validate_all_accounts() -> dict:
     """Simple validation of all active accounts"""
-    active_accounts = CalendarAccount.objects.filter(is_active=True)
+    active_accounts = CalendarAccount.objects.filter(status='ACTIVE')
     successful = 0
     failed = 0
     deactivated = []

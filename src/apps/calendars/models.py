@@ -18,7 +18,7 @@ class ActiveCalendarAccountManager(models.Manager):
     """Manager for active calendar accounts with complex queries"""
 
     def get_queryset(self):
-        return super().get_queryset().filter(is_active=True)
+        return super().get_queryset().filter(status='ACTIVE')
 
     def with_calendar_stats(self):
         """Get accounts with calendar statistics annotated"""
@@ -66,7 +66,7 @@ class SyncEnabledCalendarManager(models.Manager):
             .get_queryset()
             .filter(
                 sync_enabled=True,
-                calendar_account__is_active=True,
+                calendar_account__status='ACTIVE',
             )
         )
 
@@ -113,9 +113,34 @@ class CalendarAccount(models.Model):
     access_token = models.TextField(help_text="Encrypted OAuth access token")
     refresh_token = models.TextField(help_text="Encrypted OAuth refresh token")
     token_expires_at = models.DateTimeField(help_text="When the access token expires")
-    is_active = models.BooleanField(
-        default=True, help_text="Enable/disable sync for this account"
+    
+    # Account lifecycle status
+    STATUS_CHOICES = [
+        ('ACTIVE', 'Active'),
+        ('DISCONNECTING', 'Disconnecting'),
+        ('CLEANUP_FAILED', 'Cleanup Failed'),
+        ('DISCONNECTED', 'Disconnected'),
+    ]
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='ACTIVE',
+        help_text="Current account lifecycle status"
     )
+    cleanup_retry_count = models.IntegerField(
+        default=0,
+        help_text="Number of cleanup attempts for this account"
+    )
+    cleanup_last_error = models.TextField(
+        blank=True,
+        help_text="Last error encountered during cleanup"
+    )
+    disconnect_requested_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="When disconnection was requested by user"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -135,6 +160,29 @@ class CalendarAccount(models.Model):
     def is_token_expired(self):
         """Check if access token is expired"""
         return timezone.now() >= self.token_expires_at
+    
+    @property
+    def is_active(self):
+        """Backward compatibility property"""
+        return self.status == 'ACTIVE'
+    
+    @property  
+    def cleanup_age_hours(self):
+        """Hours since disconnection requested"""
+        if not self.disconnect_requested_at:
+            return 0
+        from django.utils import timezone
+        return (timezone.now() - self.disconnect_requested_at).total_seconds() / 3600
+    
+    def can_attempt_cleanup(self):
+        """Check if account is eligible for cleanup retry"""
+        from django.conf import settings
+        MAX_CLEANUP_RETRIES = getattr(settings, 'MAX_CLEANUP_RETRIES', 20)
+        CLEANUP_BANKRUPTCY_HOURS = getattr(settings, 'CLEANUP_BANKRUPTCY_HOURS', 48)
+        
+        return (self.status == 'DISCONNECTING' and 
+                self.cleanup_retry_count < MAX_CLEANUP_RETRIES and
+                self.cleanup_age_hours < CLEANUP_BANKRUPTCY_HOURS)
 
     def set_access_token(self, token):
         """Set encrypted access token"""
@@ -269,8 +317,8 @@ class CalendarAccount(models.Model):
 
     def deactivate_with_reason(self, reason="Manual deactivation"):
         """Deactivate account with logging"""
-        self.is_active = False
-        self.save(update_fields=["is_active"])
+        self.status = 'DISCONNECTED'
+        self.save(update_fields=["status"])
 
         logger.info(f"Deactivated account {self.email}: {reason}")
         return True
@@ -965,18 +1013,27 @@ class EventState(models.Model):
         return EventState.objects.none()
 
     @classmethod
-    def create_user_event(cls, calendar, google_event_id, title="", start_time=None, end_time=None):
-        """Create EventState for a user event"""
-        return cls.objects.create(
-            calendar=calendar,
-            google_event_id=google_event_id,
-            status='SYNCED',
-            is_busy_block=False,
-            title=title,
-            start_time=start_time,
-            end_time=end_time,
-            last_seen_at=timezone.now()
-        )
+    def create_user_event(cls, calendar, google_event_id, title="", start_time=None, end_time=None, uuid=None):
+        """Create EventState for a user event
+        
+        Args:
+            uuid: If provided, use this UUID instead of generating a new one
+        """
+        event_data = {
+            'calendar': calendar,
+            'google_event_id': google_event_id,
+            'status': 'SYNCED',
+            'is_busy_block': False,
+            'title': title,
+            'start_time': start_time,
+            'end_time': end_time,
+            'last_seen_at': timezone.now()
+        }
+        
+        if uuid:
+            event_data['uuid'] = uuid
+            
+        return cls.objects.create(**event_data)
 
     @classmethod
     def create_busy_block(cls, target_calendar, source_uuid, title="", start_time=None, end_time=None):

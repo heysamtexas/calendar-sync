@@ -43,7 +43,6 @@ class TokenRefreshToggleTest(TestCase):
             access_token="encrypted_expired_token",
             refresh_token="encrypted_refresh_token",
             token_expires_at=timezone.now() - timedelta(hours=1),  # Expired
-            is_active=True,
         )
 
         # Create calendar
@@ -165,7 +164,7 @@ class TokenRefreshToggleTest(TestCase):
     def test_toggle_on_with_inactive_account(self):
         """Test toggling calendar ON with inactive account"""
         # Deactivate account
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
 
         # Toggle calendar sync ON should fail
@@ -194,7 +193,6 @@ class TokenRefreshToggleTest(TestCase):
             access_token="encrypted_valid_token",
             refresh_token="encrypted_refresh_token2",
             token_expires_at=timezone.now() + timedelta(hours=1),  # Valid
-            is_active=True,
         )
 
         calendar2 = Calendar.objects.create(

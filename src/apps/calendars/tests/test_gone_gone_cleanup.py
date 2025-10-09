@@ -45,7 +45,6 @@ class GoneGoneCleanupTest(TestCase):
             access_token="encrypted_token",
             refresh_token="encrypted_refresh",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         # Create three calendars

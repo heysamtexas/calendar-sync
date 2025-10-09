@@ -42,7 +42,6 @@ class AutomaticSyncTest(TestCase):
             access_token="encrypted_token",
             refresh_token="encrypted_refresh",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         # Create calendar (initially disabled)
@@ -230,7 +229,7 @@ class AutomaticSyncTest(TestCase):
         from apps.calendars.services.base import BusinessLogicError
 
         # Deactivate account
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
 
         with patch('apps.calendars.services.uuid_sync_engine.sync_calendar_yolo') as mock_sync:
@@ -291,7 +290,6 @@ class CalendarSyncValidationTest(TestCase):
             access_token="encrypted_token",
             refresh_token="encrypted_refresh",
             token_expires_at=timezone.now() + timedelta(hours=1),
-            is_active=True,
         )
 
         self.calendar = Calendar.objects.create(
@@ -311,7 +309,7 @@ class CalendarSyncValidationTest(TestCase):
 
     def test_can_sync_validation_inactive_account(self):
         """Test sync validation for inactive account"""
-        self.account.is_active = False
+        self.account.status = 'DISCONNECTED'
         self.account.save()
 
         can_sync, reason = self.calendar.can_sync()

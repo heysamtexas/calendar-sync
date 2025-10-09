@@ -26,7 +26,6 @@ class MultipleAccountsTest(TestCase):
             user=self.user,
             email="personal@gmail.com",
             google_account_id="personal_google_id",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 
@@ -35,7 +34,6 @@ class MultipleAccountsTest(TestCase):
             user=self.user,
             email="work@company.com",
             google_account_id="work_google_id",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 
@@ -231,7 +229,7 @@ class MultipleAccountsTest(TestCase):
     def test_with_one_inactive_account(self):
         """Test dashboard when one account is inactive"""
         # Deactivate second account
-        self.account2.is_active = False
+        self.account2.status = 'DISCONNECTED'
         self.account2.save()
 
         self.client.login(username="testuser", password="testpass123")
@@ -337,7 +335,6 @@ class MultipleAccountsTest(TestCase):
             user=self.user,
             email="nosync@example.com",
             google_account_id="nosync_google_id",
-            is_active=True,
             token_expires_at=timezone.now() + timedelta(hours=1),
         )
 
